@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+	<head>
+		<!-- General Meta Tags -->
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no">
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<!-- STYLE -->
+		<style>
+			html, body {
+				width: 100%;
+				margin: 0;
+				background: #6666aa;
+			}
+			.canvas-container {
+				text-align: center;
+			}
+			#glCanvas {
+				padding: 40px 0;
+				margin: auto;
+			}
+			#play, #stop {
+				position: relative;
+				width: 120px;
+				height: 40px;
+				border: 2px solid #fff;
+				text-align: center;
+				margin: 10px auto;
+				cursor: pointer;
+				background: #ccc;
+			}
+			#play p, #stop p {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				margin: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="canvas-container">
+			<canvas id="glCanvas" width="640" height="480"></canvas>
+		</div>
+		<div id="play">
+			<p>PLAY</p>
+		</div>
+		<div id="stop">
+			<p>STOP</p>
+		</div>
+		<!-- shader loading -->
+		<script id="defaultVert" src="/src/default_shader.vert"></script>
+		<script id="defaultFrag" src="/src/default_shader.frag"></script>
+		<script src="/src/gl-matrix.js"></script>
+		<script src="/src/geo-primitives.js"></script>
+		<script src="/src/app.js"></script>
+	</body>
+</html>

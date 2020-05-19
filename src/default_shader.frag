@@ -8,6 +8,8 @@ varying vec3 vNormal;
 const vec3 to_sun = normalize(vec3(1.0,1.0,0.5));
 const vec3 sun_c = vec3(1.0,1.0,1.0);
 
+const float mix_a = 0.1;
+
 
 
 float diffuse(vec3 N, vec3 L) {
@@ -18,6 +20,7 @@ float diffuse(vec3 N, vec3 L) {
 
 void main() {
   	vec3 c = diffuse(vNormal, to_sun) * sun_c;
+  	c = mix(c, vec3(1.0,1.0,1.0), mix_a);
   	gl_FragColor = vec4(c, 1.0);
 }
 

@@ -1,3 +1,5 @@
+import * as M from './gl-matrix.js';
+
 /* RENDERING
 ============ */
 function get_projection(gl) {
@@ -16,7 +18,7 @@ function get_projection(gl) {
 	return projection_m;
 }
 
-function render(gl, shader_data, buffers, t /*TEMP*/) {
+function render(gl, shader_data, buffers, room /*TEMP*/, t /*TEMP*/) {
 	// Set scene constants
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
 	gl.clearDepth(1.0);                 // Clear everything
@@ -40,6 +42,7 @@ function render(gl, shader_data, buffers, t /*TEMP*/) {
 	M.vec3.set(
 		up_v,
 		1, 1, 0);
+
 	let rot_m = M.mat4.create();
 	M.mat4.fromRotation(
 		rot_m,
@@ -103,9 +106,13 @@ function render(gl, shader_data, buffers, t /*TEMP*/) {
 	// DRAW
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
 	{
-		const element_count = cube_p.count;
+		const element_count = room.wall_count_i;
 		const type = gl.UNSIGNED_SHORT;
 		const offset = 0;
 		gl.drawElements(gl.TRIANGLES, element_count, type, offset);
 	}
 }
+
+// EXPORTS
+// ==============
+export { render };

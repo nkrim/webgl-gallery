@@ -1,8 +1,25 @@
-'use strict'
+import * as M from './gl-matrix.js';
 
+// UTILITES
+// ====================
+export function interlace_2(a, b, a_stride, b_stride, count) {
+	let interlaced = [];
+	const full_stride = a_stride+b_stride;
+	for(let i=0; i<count; i++) {
+		for(let j=0; j<a_stride; j++)
+			interlaced.push(a[i*a_stride + j]);
+		for(let j=0; j<b_stride; j++)
+			interlaced.push(b[i*b_stride + j]);
+	}
+	return interlaced;
+}
+
+// PRIMITIVE GENERATORS
+// ====================
 function generate_cube_primitive() {
 	let cube_p = {
-		count: 36,
+		vert_count: 24,
+		elem_count: 36,
 		vertices: [],
 		indices: [],
 	};
@@ -44,8 +61,18 @@ function generate_cube_primitive() {
 			index += 4;
 		}
 	}
-	console.log(cube_p);
 	return cube_p;
 }
 
+// Const primitives
+// ====================
 const cube_p = generate_cube_primitive();
+const quad_p = {
+	vert_count: 4,
+	elem_count: 6,
+	vertices: interlace_2(
+		[1,1,0,-1,1,0,-1,-1,0,1,-1,0], 
+		[0,0,1,0,0,1,0,0,1,0,0,1], 
+		3, 3, 4),
+	indices: [0,1,2,0,2,3],
+}

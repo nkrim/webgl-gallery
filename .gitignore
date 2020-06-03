@@ -1,0 +1,8 @@
+# .DS_Store ignore
+.DS_Store
+
+# node_modules ignore
+/node_modules/
+
+# build ignore
+/build/

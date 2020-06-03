@@ -1,0 +1,14 @@
+- Room init
+	- structure
+	- room-isolation
+	- connections
+- Lighting
+	- probably forget about lightmapping at this point (too many caveats)
+	- room-isolation should help keep lights-per-frame low
+
+
+
+- Solution for current issues w light
+	- Manual segmentation of rooms into sections
+	- Each section will have independent lights
+	- Multiple final-pass shaders for any N lights in the section

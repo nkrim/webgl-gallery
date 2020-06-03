@@ -7619,7 +7619,3 @@ THE SOFTWARE.
   Object.defineProperty(exports, '__esModule', { value: true });
 
 })));
-
-
-// ADDED BY NOAH KRIM (for ease of use)
-const M = glMatrix;

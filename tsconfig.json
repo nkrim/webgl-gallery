@@ -1,0 +1,10 @@
+{
+    "files": [
+        "src/ts/room.ts"
+    ],
+    "compilerOptions": {
+        "noImplicitAny": true,
+        "downlevelIteration": true,
+        "target": "es5"
+    }
+}

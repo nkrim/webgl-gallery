@@ -1,4 +1,7 @@
-'use strict';
+import * as R from './render.js';
+import * as ROOM from '../ts/room.ts';
+import * as M from './gl-matrix.js';
+import { interlace_2 } from './geo-primitives.js'
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -52,15 +55,18 @@ function init_shader_program(gl, vs_source, fs_source, loc_lookup) {
 	return shader_data;
 }
 
-function init_buffers(gl) {
+function init_buffers(gl, room) {
+	// build interlaced array
+	let interlaced_vertices = interlace_2(room.wall_vertices, room.wall_normals, 3, 3, room.wall_count_v);
+
 	// vertex buffer
 	const vertex_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cube_p.vertices), gl.STATIC_DRAW);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(interlaced_vertices), gl.STATIC_DRAW);
 	// index buffer
 	const index_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(cube_p.indices), gl.STATIC_DRAW);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(room.wall_indices), gl.STATIC_DRAW);
 
 	return {
 		vertices: vertex_buffer,
@@ -71,7 +77,7 @@ function init_buffers(gl) {
 
 /* MAIN INITIALIZATION
 ====================== */
-function main_init(gl) {
+function main_init(gl, room) {
 	// SHADER INIT
 	const vs_source = default_shader_v;
 	const fs_source = default_shader_f;
@@ -88,11 +94,12 @@ function main_init(gl) {
 	const shader_data = init_shader_program(gl, vs_source, fs_source, locations);
 
 	// BUFFER INIT
-	const buffer_data = init_buffers(gl);
+	const buffer_data = init_buffers(gl, room);
 
 	return {
 		shader: shader_data,
-		buffers: buffer_data
+		buffers: buffer_data,
+		room: room
 	}
 }
 
@@ -102,7 +109,7 @@ function main_init(gl) {
 let gallery_animation_id = null;
 function frame_tick(gl, program_data) {
 	function T(t) {
-		render(gl, program_data.shader, program_data.buffers, t);
+		R.render(gl, program_data.shader, program_data.buffers, program_data.room, t);
 		gallery_animation_id = requestAnimationFrame(T);
 	}
 	return T;
@@ -116,8 +123,11 @@ function main() {
     	return;
   	}
 
+  	const room_0 = new ROOM.Room([[1,1,1,-1,-1,-1,-1,1]], 3);
+  	console.log(room_0);
+
   	// INIT
-  	let program_data = main_init(gl);
+  	let program_data = main_init(gl, room_0);
 
   	// RENDERING (FRAME TICK)
   	gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));

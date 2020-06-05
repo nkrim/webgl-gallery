@@ -55,18 +55,29 @@ function init_shader_program(gl, vs_source, fs_source, loc_lookup) {
 	return shader_data;
 }
 
-function init_buffers(gl, room) {
+function init_buffers(gl, room_list) {
 	// build interlaced array
-	let interlaced_vertices = interlace_2(room.wall_vertices, room.wall_normals, 3, 3, room.wall_count_v);
+	let all_room_vertices = [];
+	let all_room_indices = [];
+	for(let i=0; i<room_list.length; i++) {
+		const room = room_list[i];
+		const offset_v = all_room_vertices.length;
+		const offset_i = all_room_indices.length;
+		Array.prototype.push.apply(all_room_vertices, interlace_2(room.wall_vertices, room.wall_normals, 3, 3, room.wall_count_v));
+		Array.prototype.push.apply(all_room_indices, room.wall_indices);
+		// set room offset
+		room.buffer_offset_v = offset_v;
+		room.buffer_offset_i = offset_i;
+	}
 
 	// vertex buffer
 	const vertex_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(interlaced_vertices), gl.STATIC_DRAW);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(all_room_vertices), gl.STATIC_DRAW);
 	// index buffer
 	const index_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(room.wall_indices), gl.STATIC_DRAW);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(all_room_indices), gl.STATIC_DRAW);
 
 	return {
 		vertices: vertex_buffer,
@@ -77,7 +88,7 @@ function init_buffers(gl, room) {
 
 /* MAIN INITIALIZATION
 ====================== */
-function main_init(gl, room) {
+function main_init(gl, room_list) {
 	// SHADER INIT
 	const vs_source = default_shader_v;
 	const fs_source = default_shader_f;
@@ -94,12 +105,12 @@ function main_init(gl, room) {
 	const shader_data = init_shader_program(gl, vs_source, fs_source, locations);
 
 	// BUFFER INIT
-	const buffer_data = init_buffers(gl, room);
+	const buffer_data = init_buffers(gl, room_list);
 
 	return {
 		shader: shader_data,
 		buffers: buffer_data,
-		room: room
+		room_list: room_list
 	}
 }
 
@@ -109,7 +120,7 @@ function main_init(gl, room) {
 let gallery_animation_id = null;
 function frame_tick(gl, program_data) {
 	function T(t) {
-		R.render(gl, program_data.shader, program_data.buffers, program_data.room, t);
+		R.render(gl, program_data.shader, program_data.buffers, program_data.room_list, t);
 		gallery_animation_id = requestAnimationFrame(T);
 	}
 	return T;
@@ -123,11 +134,13 @@ function main() {
     	return;
   	}
 
-  	const room_0 = new ROOM.Room([[1,1,1,-1,-1,-1,-1,1]], 3);
-  	console.log(room_0);
+  	let room_list = [];
+  	room_list.push(new ROOM.Room([[1,1,1,-1,-1,-1,-1,1]], 3));
+  	room_list.push(new ROOM.Room([[-1,1,-1,-1,-2,-1,-2,1]], 3));
+  	console.log(room_list);
 
   	// INIT
-  	let program_data = main_init(gl, room_0);
+  	let program_data = main_init(gl, room_list);
 
   	// RENDERING (FRAME TICK)
   	gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));

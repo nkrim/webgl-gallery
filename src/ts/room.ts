@@ -5,8 +5,10 @@ import * as M from 'gl-matrix';
 export class Room {
 	// Initialization fields
 	// ---------------------
-	wall_paths:		Array<Array<number>>; // CCW ORDER
-	wall_height:	number;
+	wall_paths:			Array<Array<number>>; // CCW ORDER
+	wall_height:		number;
+	buffer_offset_v:	number;
+	buffer_offset_i:	number;
 
 	// Constructed values
 	// ------------------
@@ -24,6 +26,11 @@ export class Room {
 		// Initialize fields
 		this.wall_paths = wall_paths;
 		this.wall_height = wall_height;
+
+		// Default values
+		this.buffer_offset_v = -1;
+		this.buffer_offset_i = -1;
+
 		// Construct values
 		this.build_geometry();
 	}

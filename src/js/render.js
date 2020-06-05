@@ -18,7 +18,7 @@ function get_projection(gl) {
 	return projection_m;
 }
 
-function render(gl, shader_data, buffers, room /*TEMP*/, t /*TEMP*/) {
+function render(gl, shader_data, buffers, room_list /*TEMP*/, t /*TEMP*/) {
 	// Set scene constants
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
 	gl.clearDepth(1.0);                 // Clear everything
@@ -53,63 +53,73 @@ function render(gl, shader_data, buffers, room /*TEMP*/, t /*TEMP*/) {
 		modelview_m,
 		rot_m);
 
-	// CONTEXTUALIZE POSITION INFORMATION
-	{
-		const num_components = 3;  // pull out 2 values per iteration
-		const type = gl.FLOAT;    // the data in the buffer is 32bit floats
-		const normalize = false;  // don't normalize
-		const stride = 24;         // how many bytes to get from one set of values to the next
-		const offset = 0;         // how many bytes inside the buffer to start from
-		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.vertices);
-		gl.vertexAttribPointer(
-			shader_data.attribs.vertex_pos,
-			num_components,
-			type,
-			normalize,
-			stride,
-			offset);
-		gl.enableVertexAttribArray(
-			shader_data.attribs.vertex_pos);
-	}
-	// CONTEXTUALIZE NORMAL INFORMATION
-	{
-		const num_components = 3;  // pull out 2 values per iteration
-		const type = gl.FLOAT;    // the data in the buffer is 32bit floats
-		const normalize = false;  // don't normalize
-		const stride = 24;         // how many bytes to get from one set of values to the next
-		const offset = 12;         // how many bytes inside the buffer to start from
-		// gl.bindBuffer(gl.ARRAY_BUFFER, buffers.vertices);
-		gl.vertexAttribPointer(
-			shader_data.attribs.normal_dir,
-			num_components,
-			type,
-			normalize,
-			stride,
-			offset);
-		gl.enableVertexAttribArray(
-			shader_data.attribs.normal_dir);
-	}
-	// CONTEXTUALIZE INDEX INFORMATION
 
-	gl.useProgram(shader_data.prog);
+	// ROOM_LIST RENDERING
+	for(let i=0; i<room_list.length; i++) {
+		const room = room_list[i];
+		if(room.buffer_offset_v < 0 || room.buffer_offset_i < 0) {
+			console.warn(`render: room [${i}] has invalid buffer offset : v[${room.buffer_offset_v}] i[${room.buffer_offset_i}]`);
+			continue;
+		}
 
-	// Set the shader uniforms
-	gl.uniformMatrix4fv(
-		shader_data.uniforms.projection_m,
-		false,
-		projection_m);
-	gl.uniformMatrix4fv(
-		shader_data.uniforms.modelview_m,
-		false,
-		modelview_m);
+		// CONTEXTUALIZE POSITION INFORMATION
+		{
+			const num_components = 3;  // pull out 2 values per iteration
+			const type = gl.FLOAT;    // the data in the buffer is 32bit floats
+			const normalize = false;  // don't normalize
+			const stride = 24;         // how many bytes to get from one set of values to the next
+			const offset = room.buffer_offset_v*4;         // how many bytes inside the buffer to start from
+			gl.bindBuffer(gl.ARRAY_BUFFER, buffers.vertices);
+			gl.vertexAttribPointer(
+				shader_data.attribs.vertex_pos,
+				num_components,
+				type,
+				normalize,
+				stride,
+				offset);
+			gl.enableVertexAttribArray(
+				shader_data.attribs.vertex_pos);
+		}
+		// CONTEXTUALIZE NORMAL INFORMATION
+		{
+			const num_components = 3;  // pull out 2 values per iteration
+			const type = gl.FLOAT;    // the data in the buffer is 32bit floats
+			const normalize = false;  // don't normalize
+			const stride = 24;         // how many bytes to get from one set of values to the next
+			const offset = room.buffer_offset_v*4 + 12;         // how many bytes inside the buffer to start from
+			// gl.bindBuffer(gl.ARRAY_BUFFER, buffers.vertices);
+			gl.vertexAttribPointer(
+				shader_data.attribs.normal_dir,
+				num_components,
+				type,
+				normalize,
+				stride,
+				offset);
+			gl.enableVertexAttribArray(
+				shader_data.attribs.normal_dir);
+		}
+		// CONTEXTUALIZE INDEX INFORMATION
 
-	// DRAW
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
-	{
-		const element_count = room.wall_count_i;
-		const type = gl.UNSIGNED_SHORT;
-		const offset = 0;
-		gl.drawElements(gl.TRIANGLES, element_count, type, offset);
+		gl.useProgram(shader_data.prog);
+
+		// Set the shader uniforms
+		gl.uniformMatrix4fv(
+			shader_data.uniforms.projection_m,
+			false,
+			projection_m);
+		gl.uniformMatrix4fv(
+			shader_data.uniforms.modelview_m,
+			false,
+			modelview_m);
+
+		// DRAW
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
+		{
+			const element_count = room.wall_count_i;
+			const type = gl.UNSIGNED_SHORT;
+			const offset = room.buffer_offset_i;
+			gl.drawElements(gl.TRIANGLES, element_count, type, offset);
+		}
 	}
 }
 

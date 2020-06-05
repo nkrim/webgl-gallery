@@ -4,7 +4,6 @@ precision mediump float;
 
 varying vec3 vNormal;
 
-
 const vec3 to_sun = normalize(vec3(1.0,1.0,0.5));
 const vec3 sun_c = vec3(1.0,1.0,1.0);
 

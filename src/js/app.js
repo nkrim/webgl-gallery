@@ -1,7 +1,10 @@
 import * as R from './render.js';
 import * as ROOM from '../ts/room.ts';
+import { Camera } from '../ts/camera.ts';
+import * as INPUT from '../ts/input.ts';
 import * as M from './gl-matrix.js';
-import { interlace_2 } from './geo-primitives.js'
+import { interlace_2 } from './geo-primitives.js';
+import { room_config } from './room-config.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -48,10 +51,8 @@ function init_shader_program(gl, vs_source, fs_source, loc_lookup) {
 	};
 	for(let [k, v] of Object.entries(loc_lookup.attribs))
 		shader_data.attribs[k] = gl.getAttribLocation(shader_program, v);
-	console.log(Object.entries(loc_lookup.uniforms))
 	for(let [k, v] of Object.entries(loc_lookup.uniforms))
 		shader_data.uniforms[k] = gl.getUniformLocation(shader_program, v);
-	console.log(shader_data);
 	return shader_data;
 }
 
@@ -98,8 +99,9 @@ function main_init(gl, room_list) {
 			normal_dir: 'aNormalDirection',
 		},
 		uniforms: {
-			projection_m: 'uProjectionMatrix',
-			modelview_m: 'uModelViewMatrix'
+			projection_m: 'uProjection',
+			view_m: 'uView',
+			model_m: 'uModel'
 		}
 	};
 	const shader_data = init_shader_program(gl, vs_source, fs_source, locations);
@@ -118,10 +120,20 @@ function main_init(gl, room_list) {
 /* MAIN FUNCTION
 ================ */
 let gallery_animation_id = null;
+let prev_t = -1;
 function frame_tick(gl, program_data) {
 	function T(t) {
-		R.render(gl, program_data.shader, program_data.buffers, program_data.room_list, t);
+		// Give grace-frame for accurate dt
+		if(prev_t < 0)
+			prev_t = t;
+		let dt = t - prev_t;
+
+		INPUT.handle_input(program_data.cam, dt);
+		R.render(gl, program_data, t);
 		gallery_animation_id = requestAnimationFrame(T);
+
+		// Set prev_t
+		prev_t = t;
 	}
 	return T;
 }
@@ -133,26 +145,45 @@ function main() {
    		alert("Unable to initialize WebGL. Your browser or machine may not support it.");
     	return;
   	}
+  	INPUT.init_handlers();
 
+  	// ROOM INIT
   	let room_list = [];
-  	room_list.push(new ROOM.Room([[1,1,1,-1,-1,-1,-1,1]], 3));
-  	room_list.push(new ROOM.Room([[-1,1,-1,-1,-2,-1,-2,1]], 3));
+ 	for(let i=0; i<room_config.length; i++) {
+ 		const r = room_config[0];
+ 		room_list.push(
+ 			new ROOM.Room(r.wall_paths, r.wall_height, r.room_scale)
+ 		);
+ 	}
   	console.log(room_list);
 
-  	// INIT
+  	// CAMERA INIT
+  	const cam_pos = M.vec3.create();
+  	M.vec3.set(cam_pos, 0, 2, 8);
+  	const cam = new Camera(cam_pos, 0, 0);
+
+  	// PROGRAM INIT
   	let program_data = main_init(gl, room_list);
+  	program_data.cam = cam;
+  	console.log(program_data);
+
+  	/* TEMP DEBUG SETTING */
+  	window.glMatrix = M;
+  	window.program_data = program_data;
 
   	// RENDERING (FRAME TICK)
   	gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
 
   	// EVENT HANDLERS (PLAY AND STOP BUTTONS)
   	document.querySelector('#play').onclick = function() {
-		if(gallery_animation_id === null)
+		if(gallery_animation_id === null) {
 			gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
+		}
 	}
 	document.querySelector('#stop').onclick = function() {
 		cancelAnimationFrame(gallery_animation_id);
 		gallery_animation_id = null;
+		prev_t = -1;
 	}
 }
 

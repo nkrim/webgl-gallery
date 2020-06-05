@@ -1,4 +1,5 @@
 import * as M from 'gl-matrix';
+import { vec3, mat4} from 'gl-matrix';
 
 // ROOM CLASS
 // ==========
@@ -7,11 +8,13 @@ export class Room {
 	// ---------------------
 	wall_paths:			Array<Array<number>>; // CCW ORDER
 	wall_height:		number;
-	buffer_offset_v:	number;
-	buffer_offset_i:	number;
+	room_scale: 		number;
 
 	// Constructed values
 	// ------------------
+	// buffer info
+	buffer_offset_v:	number;
+	buffer_offset_i:	number;
 	// wall geometry
 	wall_count_v: 	number;
 	wall_count_i: 	number;
@@ -19,13 +22,18 @@ export class Room {
 	wall_normals: 	Array<number>;
 	wall_indices: 	Array<number>;
 
+	/* ------------\
+	| CONTSTRUCTOR |
+	\------------ */
 	constructor(
 			wall_paths:		Array<Array<number>>, 
-			wall_height:	number
+			wall_height:	number,
+			room_scale: 	number
 	) {
 		// Initialize fields
 		this.wall_paths = wall_paths;
 		this.wall_height = wall_height;
+		this.room_scale = room_scale;
 
 		// Default values
 		this.buffer_offset_v = -1;
@@ -37,7 +45,7 @@ export class Room {
 
 
 	// INITIALIZATION FUNCTIONS
-	build_geometry() {
+	build_geometry(): void {
 		// Initialize values and arrays
 		this.wall_count_v = 0;
 		this.wall_count_i = 0;
@@ -54,20 +62,20 @@ export class Room {
 			}
 
 			// Init vectors
-			const v_cur_l 		= M.vec3.create();
-			const v_cur_u 		= M.vec3.create();
-			const v_prev_l 		= M.vec3.create();
-			const v_prev_u 		= M.vec3.create();
-			const v_normal 		= M.vec3.create();
-			const v_height_add 	= M.vec3.create();
+			const v_cur_l:vec3 			= M.vec3.create();
+			const v_cur_u:vec3 			= M.vec3.create();
+			const v_prev_l:vec3 		= M.vec3.create();
+			const v_prev_u:vec3 		= M.vec3.create();
+			const v_normal:vec3 		= M.vec3.create();
+			const v_height_add:vec3 	= M.vec3.create();
 			// Init prev points and starting values
 			M.vec3.set(v_height_add, 0, this.wall_height, 0);
-			M.vec3.set(v_prev_l, path[0], 0, path[1]);
+			M.vec3.set(v_prev_l, path[0]*this.room_scale, 0, path[1]*this.room_scale);
 			M.vec3.add(v_prev_u, v_prev_l, v_height_add);
 			// Build path
 			for(let i=2; i<path.length; i+=2) {
 				// set cur vectors
-				M.vec3.set(v_cur_l, path[i], 0, path[i+1]);
+				M.vec3.set(v_cur_l, path[i]*this.room_scale, 0, path[i+1]*this.room_scale);
 				M.vec3.add(v_cur_u, v_cur_l, v_height_add);
 				// push vertices and indices
 				this.wall_vertices.push(...v_prev_u, ...v_cur_u, ...v_cur_l, ...v_prev_l);

@@ -5,6 +5,7 @@ import { clamp } from './utils';
 
 /* CONSTANT TUNING VARIABLES */
 const move_speed:number = 4;
+const v_move_speed:number = 4;
 const pitch_speed:number = 1.5;
 const yaw_speed:number = 1.5;
 
@@ -35,15 +36,22 @@ export function handle_input(cam:Camera, dt:number):void {
 	if(key_set.has(87)) z -= 1; // W
 	move(x, z, cam, dt);
 
+	// V-Movement
+	// ----------
+	let y:number = 0;
+	if(key_set.has(32)) y += 1; // space
+	if(key_set.has(90)) y -= 1; // z
+	v_move(y, cam, dt);
+
 	// Look
 	// ----
-	let p:number = 0;
-	let y:number = 0;
-	if(key_set.has(38)) p += 1; // up
-	if(key_set.has(40)) p -= 1; // down
-	if(key_set.has(37)) y += 1; // left
-	if(key_set.has(39)) y -= 1; // right
-	look(p, y, cam, dt);
+	let pitch 	:number = 0;
+	let yaw 	:number = 0;
+	if(key_set.has(38)) pitch += 1; // up
+	if(key_set.has(40)) pitch -= 1; // down
+	if(key_set.has(37)) yaw += 1; // left
+	if(key_set.has(39)) yaw -= 1; // right
+	look(pitch, yaw, cam, dt);
 }
 
 function move(x:number, z:number, cam:Camera, dt:number):void {
@@ -53,6 +61,12 @@ function move(x:number, z:number, cam:Camera, dt:number):void {
 	const zero:vec3 = M.vec3.create();
 	M.vec3.rotateY(trans, trans, zero, cam.yaw);
 	M.vec3.add(cam.pos, cam.pos, trans); 
+}
+
+function v_move(y:number, cam:Camera, dt:number): void {
+	const trans:vec3 = M.vec3.create();
+	M.vec3.set(trans, 0, y * (v_move_speed/1000 * dt), 0);
+	M.vec3.add(cam.pos, cam.pos, trans);
 }
 
 function look(p:number, y:number, cam:Camera, dt:number):void {

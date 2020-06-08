@@ -152,7 +152,7 @@ function main() {
  	for(let i=0; i<room_config.length; i++) {
  		const r = room_config[0];
  		room_list.push(
- 			new ROOM.Room(r.wall_paths, r.wall_height, r.room_scale)
+ 			new ROOM.Room(r.wall_paths, r.wall_height, r.floor_indices, r.room_scale)
  		);
  	}
   	console.log(room_list);

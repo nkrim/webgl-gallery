@@ -38,7 +38,7 @@ vec3 diffuse(vec3 N, vec3 L, vec3 C) {
 }
 
 void main() {
-	vec3 norm = texture2D(u_norm_tex, v_texcoord).xyz; 
+	vec3 norm = normalize(texture2D(u_norm_tex, v_texcoord).xyz); 
 	vec3 diffuse_v = diffuse(norm, v_to_sun, sun_c);
 	vec3 ambient_v = ambient_i * ambient_c;
 	vec3 obj_color = vec3(1.0,1.0,1.0);//texture2D(u_color_tex, v_texcoord).xyz;

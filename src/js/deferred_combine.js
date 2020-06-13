@@ -21,7 +21,7 @@ void main() {
 export const deferred_combine_f = `
 precision highp float;
 
-const float ambient_i = 0.1;
+const float ambient_i = 0.05;
 const vec3 ambient_c = vec3(1.0,1.0,1.0);
 
 const vec3 sun_c = vec3(1.0,1.0,1.0);
@@ -41,7 +41,7 @@ void main() {
 	vec3 norm = texture2D(u_norm_tex, v_texcoord).xyz; 
 	vec3 diffuse_v = diffuse(norm, v_to_sun, sun_c);
 	vec3 ambient_v = ambient_i * ambient_c;
-	vec3 obj_color = vec3(1.0,1.0,1.0);//texture2D(u_color_tex, v_texcoord).xyz;
+	vec3 obj_color = texture2D(u_color_tex, v_texcoord).xyz;
   	gl_FragColor = vec4((ambient_v + diffuse_v) * obj_color, 1.0);
 }
 

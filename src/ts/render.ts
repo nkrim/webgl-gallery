@@ -220,6 +220,9 @@ function quad_deferred_combine(gl:any, pd:any):void {
 	gl.activeTexture(gl.TEXTURE2);	// color buffer
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[3]);
 	gl.uniform1i(pd.shaders.deferred_combine.uniforms.color_tex, 2);
+	gl.activeTexture(gl.TEXTURE3);	// ssao textuer
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao);
+	gl.uniform1i(pd.shaders.deferred_combine.uniforms.ssao_tex, 3);
 
 	// draw
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)

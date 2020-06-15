@@ -22,8 +22,8 @@ const float noise_tex_dimension = 4.0;
 const vec2 noise_scale = vec2(viewport_width/noise_tex_dimension, viewport_height/noise_tex_dimension);
 
 // ssao kernel variables
-const int kernel_size = 64;
-const float sample_radius = 0.5;
+const int kernel_size = 32;
+const float sample_radius = 1.0;
 const float sample_depth_bias = 0.025;
 
 // varyings
@@ -62,13 +62,14 @@ void main() {
 		ss_sample = u_proj * ss_sample;
 		ss_sample.xyz /= ss_sample.w;
 		// get texel from pixel
-		ss_sample = ss_sample*0.5 + 0.5;
+		ss_sample.xyz = ss_sample.xyz*0.5 + 0.5;
 
 		// sample real depth of pixel from position gbuffer
 		float sample_depth = texture2D(u_pos_tex, ss_sample.xy).z;
+
 		// compare depth with offset-sample expected depth, add result to occlusion
 		float range_bias = smoothstep(0.0, 1.0, sample_radius / abs(pos.z - sample_depth));
-		occlusion += (sample_depth >= sample.z + sample_depth_bias ? 1.0 : 0.0) * range_bias;  
+		occlusion += (sample_depth >= sample.z ? 1.0 : 0.0) * range_bias;  
 	}
 
 	occlusion = 1.0 - occlusion/float(kernel_size);

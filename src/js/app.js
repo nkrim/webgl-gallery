@@ -236,7 +236,7 @@ function gen_ssao_kernel_and_noise(gl, tx_obj) {
 	const v = M.vec3.create();
 
 	// generate sample kernel
-	const sample_count = 64;
+	const sample_count = 32;
 	const samples = [];
 	for(let i=0; i<sample_count; i++) {
 		// Generate vector in unit-hemisphere
@@ -332,6 +332,7 @@ function main_init(gl, room_list) {
 			pos_tex: 'u_pos_tex',
 			norm_tex: 'u_norm_tex',
 			color_tex: 'u_color_tex',
+			ssao_tex: 'u_ssao_tex',
 		}
 	}
 	shaders.deferred_combine = init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l);
@@ -386,6 +387,8 @@ function main_init(gl, room_list) {
 ================ */
 let gallery_animation_id = null;
 let prev_t = -1;
+let frame_count = 0;
+let time_of_last_tracked_frame = -1;
 function frame_tick(gl, program_data) {
 	function T(t) {
 		// Give grace-frame for accurate dt
@@ -397,6 +400,9 @@ function frame_tick(gl, program_data) {
 		R.render(gl, program_data, t);
 		gallery_animation_id = requestAnimationFrame(T);
 
+		frame_count++;
+		if(time_of_last_tracked_frame < 0)
+			time_of_last_tracked_frame = prev_t;
 		// Set prev_t
 		prev_t = t;
 	}
@@ -472,6 +478,14 @@ function main() {
 		gallery_animation_id = null;
 		prev_t = -1;
 	}
+}
+
+window.getFPS = function() {
+	return frame_count / ((prev_t - time_of_last_tracked_frame) / 1000);
+}
+window.resetFPS = function() {
+	frame_count = 0;
+	time_of_last_tracked_frame = prev_t;
 }
 
 window.onload = main;

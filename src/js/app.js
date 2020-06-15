@@ -1,7 +1,8 @@
-import * as R from './render.js';
+import * as R from '../ts/render.ts';
 import * as ROOM from '../ts/room.ts';
 import { Camera } from '../ts/camera.ts';
 import * as INPUT from '../ts/input.ts';
+import { lerp } from '../ts/utils.ts';
 import * as M from './gl-matrix.js';
 import { interlace_2 } from './geo-primitives.js';
 import { room_config } from './room-config.js';
@@ -9,6 +10,7 @@ import { room_config } from './room-config.js';
 import { default_shader_v, default_shader_f } from './default_shader.js';
 import { deferred_pass_v, deferred_pass_f } from './deferred_pass.js';
 import { deferred_combine_v, deferred_combine_f } from './deferred_combine.js';
+import { ssao_pass_v, ssao_pass_f } from './ssao_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -116,10 +118,14 @@ function init_buffers(gl, room_list) {
 	3: gbuffer color
 */
 function init_textures(gl) {
+	// init tx_obj
 	const tx_obj = {};
+
+	// DEFERRED PASS FBO TEXTURES
+	// -------------------------- 
 	// depth attachment
 	{
-		let tx = gl.createTexture();
+		const tx = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, tx);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -135,12 +141,13 @@ function init_textures(gl) {
 		const pixel = null;  // empty
 		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
                 width, height, border, srcFormat, srcType, pixel);
+		// set as depth
 		tx_obj.depth = tx;
 	}
-	// other attachments
+	// gbuffer attachments
 	tx_obj.bufs = []
 	for(let i=0; i<4; i++) {
-		let tx = gl.createTexture();
+		const tx = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, tx);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -158,9 +165,34 @@ function init_textures(gl) {
                 width, height, border, srcFormat, srcType, pixel);
 		tx_obj.bufs.push(tx);
 	}
+
+	// ssao texture
+	{
+		const tx = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, tx);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		const level = 0;
+		const internalFormat = gl.RGBA;
+		const width = gl.canvas.clientWidth;
+		const height = gl.canvas.clientHeight;
+		const border = 0;
+		const srcFormat = gl.RGBA;
+		const srcType = gl.FLOAT;
+		const pixel = null;  // empty
+		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                width, height, border, srcFormat, srcType, pixel);
+		// set as ssao
+		tx_obj.ssao = tx;
+	}
+
 	return tx_obj;
 }
 
+/* Framebuffer Initializations
+------------------------------ */
 function init_deferred_framebuffer(gl, tx) {
 	const fb = gl.createFramebuffer();
 	// Bind GBuffer textures
@@ -179,9 +211,86 @@ function init_deferred_framebuffer(gl, tx) {
 		gl.ext.db.COLOR_ATTACHMENT3_WEBGL,
 	]);
 
+	// unbind
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
 	return fb;
+}
+
+function init_ssao_framebuffer(gl, ssao_texture) {
+	const fb = gl.createFramebuffer();
+	// Bind GBuffer textures
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_texture, 0);;
+
+	// unbind
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	return fb;
+}
+
+/* SSAO Kernel and noise generation
+----------------------------------- */
+function gen_ssao_kernel_and_noise(gl, tx_obj) {
+	// init vector for operations
+	const v = M.vec3.create();
+
+	// generate sample kernel
+	const sample_count = 64;
+	const samples = [];
+	for(let i=0; i<sample_count; i++) {
+		// Generate vector in unit-hemisphere
+		M.vec3.set(v, 
+			Math.random()*2.0 - 1.0, 
+			Math.random()*2.0 - 1.0, 
+			Math.random());
+		M.vec3.normalize(v, v);
+		// Ramp interpolation from center
+		let scale = 1.0*i/sample_count;
+		scale = lerp(0.1, 1.0, scale*scale);
+		M.vec3.scale(v, v, scale);
+		// Push sample
+		samples.push(...v);
+	}
+	const sample_data = new Float32Array(samples);
+
+	// generate noise texture values
+	const tex_dimension = 4;
+	const rotation_count = tex_dimension*tex_dimension;
+	const rotations = [];
+	for(let i=0; i<rotation_count; i++) {
+		M.vec3.set(v,
+			Math.random()*2.0 - 1.0, 
+			Math.random()*2.0 - 1.0, 
+			0);
+		rotations.push(...v);
+	}
+	const rotation_data = new Float32Array(rotations);
+
+	// generate noise texture
+	{
+		const tx = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, tx);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+		const level = 0;
+		const internalFormat = gl.RGB;
+		const width = tex_dimension;
+		const height = tex_dimension;
+		const border = 0;
+		const srcFormat = gl.RGB;
+		const srcType = gl.FLOAT;
+		const pixel = rotation_data;  // rotations array
+		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                width, height, border, srcFormat, srcType, pixel);
+		// set as rot_noise
+		tx_obj.rot_noise = tx;
+	}
+
+	// return sample kernel
+	return sample_data;
 }
 
 
@@ -219,13 +328,26 @@ function main_init(gl, room_list) {
 			vertex_pos: 'a_vert',
 		},
 		uniforms: {
-			inv_view_m: 'u_view',
+			view_m: 'u_view',
 			pos_tex: 'u_pos_tex',
 			norm_tex: 'u_norm_tex',
 			color_tex: 'u_color_tex',
 		}
 	}
 	shaders.deferred_combine = init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l);
+	const ssao_pass_l = {
+		attribs: {
+			vertex_pos: 'a_vert',
+		},
+		uniforms: {
+			pos_tex: 'u_pos_tex',
+			norm_tex: 'u_norm_tex',
+			noise_tex: 'u_noise_tex',
+			samples_a: 'u_samples',
+			proj_m: 'u_proj',
+		}
+	}
+	shaders.ssao_pass = init_shader_program(gl, ssao_pass_v, ssao_pass_f, ssao_pass_l);
 
 	// BUFFER INIT
 	const buffer_data = init_buffers(gl, room_list);
@@ -239,7 +361,11 @@ function main_init(gl, room_list) {
   	const tx = init_textures(gl);
 
   	// FRAMEBUFFER INIT
-  	const deferred_fb = init_deferred_framebuffer(gl, tx)
+  	const deferred_fb = init_deferred_framebuffer(gl, tx);
+  	const ssao_fb = init_ssao_framebuffer(gl, tx.ssao);
+
+  	// SSAO DATA INIT
+  	const sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
 
 	return {
 		shaders: shaders,
@@ -247,7 +373,11 @@ function main_init(gl, room_list) {
 		room_list: room_list,
 		cam: cam,
 		tx: tx,
-		deferred_fb: deferred_fb,
+		fb: {
+			deferred: deferred_fb,
+			ssao: ssao_fb,
+		},
+		ssao_kernel: sample_kernel,
 	}
 }
 
@@ -304,6 +434,8 @@ function main() {
   		dt: ext_depth_texture,
   	}
 
+
+
   	// ROOM INIT
   	let room_list = [];
  	for(let i=0; i<room_config.length; i++) {
@@ -318,7 +450,11 @@ function main() {
   	let program_data = main_init(gl, room_list);
   	console.log(program_data);
 
+
+
+
   	/* TEMP DEBUG SETTING */
+  	window.webgl = gl;
   	window.glMatrix = M;
   	window.program_data = program_data;
 

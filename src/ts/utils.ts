@@ -18,3 +18,7 @@ export function hash_2(a:number, b:number, m:number):number {
 export function unhash_2(h:number, m:number):[number,number] {
 	return [h/m, h%m];
 }
+
+export function lerp(a:number, b:number, t:number):number {
+	return a + t*(b - a);
+}

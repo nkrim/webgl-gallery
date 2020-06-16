@@ -1,3 +1,4 @@
+export const SSAO_KERNEL_SIZE = 32;
 export const ssao_pass_v = `
 #version 100
 
@@ -22,8 +23,8 @@ const float noise_tex_dimension = 4.0;
 const vec2 noise_scale = vec2(viewport_width/noise_tex_dimension, viewport_height/noise_tex_dimension);
 
 // ssao kernel variables
-const int kernel_size = 32;
-const float sample_radius = 1.0;
+const int kernel_size = ${SSAO_KERNEL_SIZE};
+const float sample_radius = 0.5;
 const float sample_depth_bias = 0.025;
 
 // varyings
@@ -35,7 +36,7 @@ uniform sampler2D u_norm_tex;
 uniform sampler2D u_noise_tex;
 
 // other uniforms
-uniform vec3 u_samples[64];
+uniform vec3 u_samples[${SSAO_KERNEL_SIZE}];
 uniform mat4 u_proj;
 
 

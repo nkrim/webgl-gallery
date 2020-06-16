@@ -10,7 +10,7 @@ import { room_config } from './room-config.js';
 import { default_shader_v, default_shader_f } from './default_shader.js';
 import { deferred_pass_v, deferred_pass_f } from './deferred_pass.js';
 import { deferred_combine_v, deferred_combine_f } from './deferred_combine.js';
-import { ssao_pass_v, ssao_pass_f } from './ssao_pass.js';
+import { ssao_pass_v, ssao_pass_f, SSAO_KERNEL_SIZE } from './ssao_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -236,7 +236,7 @@ function gen_ssao_kernel_and_noise(gl, tx_obj) {
 	const v = M.vec3.create();
 
 	// generate sample kernel
-	const sample_count = 32;
+	const sample_count = SSAO_KERNEL_SIZE;
 	const samples = [];
 	for(let i=0; i<sample_count; i++) {
 		// Generate vector in unit-hemisphere

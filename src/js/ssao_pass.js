@@ -1,4 +1,5 @@
 export const SSAO_KERNEL_SIZE = 32;
+export const SSAO_SAMPLE_RADIUS = 0.25;
 export const ssao_pass_v = `
 #version 100
 
@@ -24,7 +25,7 @@ const vec2 noise_scale = vec2(viewport_width/noise_tex_dimension, viewport_heigh
 
 // ssao kernel variables
 const int kernel_size = ${SSAO_KERNEL_SIZE};
-const float sample_radius = 0.5;
+const float sample_radius = ${SSAO_SAMPLE_RADIUS};
 const float sample_depth_bias = 0.025;
 
 // varyings

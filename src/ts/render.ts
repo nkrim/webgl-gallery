@@ -30,10 +30,10 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 	gl.useProgram(pd.shaders.deferred_pass.prog);
 
 	// Set scene constants
-	gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
-	gl.clearDepth(1.0);                 // Clear everything
-	gl.enable(gl.DEPTH_TEST);           // Enable depth testing
-	gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.clearDepth(1.0);
+	gl.enable(gl.DEPTH_TEST);
+	gl.depthFunc(gl.LEQUAL);
 	gl.enable(gl.CULL_FACE)
 	gl.cullFace(gl.BACK);
 
@@ -130,15 +130,15 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 ==================== */
 function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 	// set fbo
-	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.ssao);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.ssao_pass);
 
 	// use program
 	gl.useProgram(pd.shaders.ssao_pass.prog);
 
 	// clear constants
-	gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
-	gl.clearDepth(1.0);                 // Clear everything
-	gl.disable(gl.DEPTH_TEST);           // Enable depth testing
+	gl.clearColor(0.0, 0.0, 0.0, 1.0); 
+	gl.clearDepth(1.0);                
+	gl.disable(gl.DEPTH_TEST);         
 	gl.enable(gl.CULL_FACE)
 	gl.cullFace(gl.BACK);
 	// clear
@@ -171,6 +171,42 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 		pd.shaders.ssao_pass.uniforms.proj_m,
 		false,
 		proj_m);
+
+	// draw
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+}
+
+/* SSAO BLUR
+==================== */
+function ssao_blur(gl:any, pd:any):void {
+	// set fbo
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.ssao_blur);
+
+	// use program
+	gl.useProgram(pd.shaders.ssao_blur.prog);
+
+	// clear constants
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);  
+	gl.clearDepth(1.0);                 
+	gl.disable(gl.DEPTH_TEST);          
+	gl.enable(gl.CULL_FACE)
+	gl.cullFace(gl.BACK);
+	// clear
+	gl.clear(gl.COLOR_BUFFER_BIT);
+
+	// vertex attrib for positions (texcoords derived from positions)
+	gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
+	gl.vertexAttribPointer(
+		pd.shaders.ssao_blur.attribs.vertex_pos,
+		2, gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(
+		pd.shaders.ssao_blur.attribs.vertex_pos);
+
+	// texture set
+	gl.activeTexture(gl.TEXTURE0);	// position buffer
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_pass);
+	gl.uniform1i(pd.shaders.ssao_blur.uniforms.ssao_tex, 0);
 
 	// draw
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
@@ -222,7 +258,7 @@ function quad_deferred_combine(gl:any, pd:any):void {
 	gl.uniform1i(pd.shaders.deferred_combine.uniforms.color_tex, 2);
 	gl.activeTexture(gl.TEXTURE3);	// ssao textuer
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao);
-	gl.uniform1i(pd.shaders.deferred_combine.uniforms.ssao_tex, 3);
+	gl.uniform1i(pd.shaders.deferred_combine.uniforms.ssao_blur_tex, 3);
 
 	// draw
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
@@ -242,7 +278,10 @@ function render(gl:any, pd:any):void {
 	// PASS 2: ssao pass
 	ssao_pass(gl, pd, proj_m)
 
-	// PASS 2: combine gbuffer contents on quad
+	// PASS 3: ssao pass
+	ssao_blur(gl, pd)
+
+	// PASS 4: combine gbuffer contents on quad
 	quad_deferred_combine(gl, pd);
 
 }

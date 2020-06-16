@@ -13,12 +13,12 @@ void main() {
 
 `;
 
-export const ssao_pass_f = `
+export function gen_ssao_pass_f(viewport_width, viewport_height) {return `
 precision highp float;
 
 // noise sampling constants
-const float viewport_width = 640.0;
-const float viewport_height = 480.0;
+const float viewport_width = ${viewport_width}.0;
+const float viewport_height = ${viewport_height}.0;
 const float noise_tex_dimension = 4.0;
 const vec2 noise_scale = vec2(viewport_width/noise_tex_dimension, viewport_height/noise_tex_dimension);
 
@@ -77,4 +77,4 @@ void main() {
   	gl_FragColor = vec4(vec3(occlusion), 1.0);
 }
 
-`;
+`};

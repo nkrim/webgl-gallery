@@ -10,7 +10,8 @@ import { room_config } from './room-config.js';
 import { default_shader_v, default_shader_f } from './default_shader.js';
 import { deferred_pass_v, deferred_pass_f } from './deferred_pass.js';
 import { deferred_combine_v, deferred_combine_f } from './deferred_combine.js';
-import { ssao_pass_v, ssao_pass_f, SSAO_KERNEL_SIZE } from './ssao_pass.js';
+import { ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from './ssao_pass.js';
+import { ssao_blur_v, gen_ssao_blur_f } from './ssao_blur.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -167,7 +168,7 @@ function init_textures(gl) {
 	}
 
 	// ssao texture
-	{
+	for(let i=0; i<2; i++) {
 		const tx = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, tx);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -185,7 +186,10 @@ function init_textures(gl) {
 		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
                 width, height, border, srcFormat, srcType, pixel);
 		// set as ssao
-		tx_obj.ssao = tx;
+		if(i == 0)
+			tx_obj.ssao_pass = tx;
+		else if(i == 1)
+			tx_obj.ssao_blur = tx;
 	}
 
 	return tx_obj;
@@ -217,11 +221,23 @@ function init_deferred_framebuffer(gl, tx) {
 	return fb;
 }
 
-function init_ssao_framebuffer(gl, ssao_texture) {
+function init_ssao_pass_framebuffer(gl, ssao_pass_texture) {
 	const fb = gl.createFramebuffer();
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_texture, 0);;
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_pass_texture, 0);;
+
+	// unbind
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	return fb;
+}
+
+function init_ssao_blur_framebuffer(gl, ssao_blur_texture) {
+	const fb = gl.createFramebuffer();
+	// Bind GBuffer textures
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_blur_texture, 0);;
 
 	// unbind
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -348,7 +364,20 @@ function main_init(gl, room_list) {
 			proj_m: 'u_proj',
 		}
 	}
-	shaders.ssao_pass = init_shader_program(gl, ssao_pass_v, ssao_pass_f, ssao_pass_l);
+	shaders.ssao_pass = init_shader_program(gl, ssao_pass_v, 
+		gen_ssao_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight),
+		ssao_pass_l);
+	const ssao_blur_l = {
+		attribs: {
+			vertex_pos: 'a_vert',
+		},
+		uniforms: {
+			ssao_tex: 'u_ssao_tex',
+		}
+	}
+	shaders.ssao_blur = init_shader_program(gl, ssao_blur_v, 
+		gen_ssao_blur_f(gl.canvas.clientWidth, gl.canvas.clientHeight),
+		ssao_blur_l);
 
 	// BUFFER INIT
 	const buffer_data = init_buffers(gl, room_list);
@@ -363,7 +392,8 @@ function main_init(gl, room_list) {
 
   	// FRAMEBUFFER INIT
   	const deferred_fb = init_deferred_framebuffer(gl, tx);
-  	const ssao_fb = init_ssao_framebuffer(gl, tx.ssao);
+  	const ssao_pass_fb = init_ssao_pass_framebuffer(gl, tx.ssao_pass);
+  	const ssao_blur_fb = init_ssao_blur_framebuffer(gl, tx.ssao_blur);
 
   	// SSAO DATA INIT
   	const sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
@@ -376,7 +406,8 @@ function main_init(gl, room_list) {
 		tx: tx,
 		fb: {
 			deferred: deferred_fb,
-			ssao: ssao_fb,
+			ssao_pass: ssao_pass_fb,
+			ssao_blur: ssao_blur_fb,
 		},
 		ssao_kernel: sample_kernel,
 	}

@@ -2,16 +2,16 @@ import * as R from '../ts/render.ts';
 import * as ROOM from '../ts/room.ts';
 import { Camera } from '../ts/camera.ts';
 import * as INPUT from '../ts/input.ts';
-import { lerp } from '../ts/utils.ts';
+import { lerp, interlace_n } from '../ts/utils.ts';
 import * as M from './gl-matrix.js';
-import { interlace_2 } from './geo-primitives.js';
 import { room_config } from './room-config.js';
 // Shaders
-import { default_shader_v, default_shader_f } from './default_shader.js';
-import { deferred_pass_v, deferred_pass_f } from './deferred_pass.js';
-import { deferred_combine_v, deferred_combine_f } from './deferred_combine.js';
-import { ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from './ssao_pass.js';
-import { ssao_blur_v, gen_ssao_blur_f } from './ssao_blur.js';
+// import { default_shader_v, default_shader_f } from './shaders/default_shader.js';
+import { deferred_pass_v, deferred_pass_f } from './shaders/deferred_pass.js';
+import { deferred_combine_v, deferred_combine_f } from './shaders/deferred_combine.js';
+import { ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from './shaders/ssao_pass.js';
+import { ssao_blur_v, gen_ssao_blur_f } from './shaders/ssao_blur.js';
+import { spotlight_pass_v, spotlight_pass_f } from './shaders/spotlight_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -84,12 +84,21 @@ function init_buffers(gl, room_list) {
 		const room = room_list[i];
 		const offset_v = all_room_vertices.length;
 		const offset_i = all_room_indices.length;
-		Array.prototype.push.apply(all_room_vertices, interlace_2(room.wall_vertices, room.wall_normals, 3, 3, room.wall_count_v));
-		Array.prototype.push.apply(all_room_indices, room.wall_indices);
+		const interlaced = interlace_n(
+			4,
+			[room.mesh_vertices, room.mesh_normals, room.mesh_albedo, room.mesh_rough_metal],
+			[3, 				 3, 			    3,                2],
+			room.mesh_count_v
+		);
+		console.log(interlaced);
+		for(let j=0; j<interlaced.length; j++)
+			all_room_vertices.push(interlaced[j]);
+		Array.prototype.push.apply(all_room_indices, room.mesh_indices);
 		// set room offset
 		room.buffer_offset_v = offset_v;
 		room.buffer_offset_i = offset_i;
 	}
+	console.log(all_room_vertices);
 	// vertex buffer
 	const room_vertex_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ARRAY_BUFFER, room_vertex_buffer);
@@ -116,7 +125,8 @@ function init_buffers(gl, room_list) {
 	0: gbuffer depth
 	1: gbuffer position
 	2: gbuffer normal
-	3: gbuffer color
+	3: gbuffer albedo
+	4: gbuffer roughness/metallic
 */
 function init_textures(gl) {
 	// init tx_obj
@@ -147,7 +157,7 @@ function init_textures(gl) {
 	}
 	// gbuffer attachments
 	tx_obj.bufs = []
-	for(let i=0; i<4; i++) {
+	for(let i=0; i<6; i++) {
 		const tx = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, tx);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -192,6 +202,48 @@ function init_textures(gl) {
 			tx_obj.ssao_blur = tx;
 	}
 
+	// shadow atlas
+	{
+		const tx = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, tx);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		const level = 0;
+		const internalFormat = gl.DEPTH_COMPONENT;
+		const width = gl.canvas.clientWidth;
+		const height = gl.canvas.clientHeight;
+		const border = 0;
+		const srcFormat = gl.DEPTH_COMPONENT;
+		const srcType = gl.UNSIGNED_SHORT;
+		const pixel = null;  // empty
+		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                width, height, border, srcFormat, srcType, pixel);
+		tx_obj.shadow_atlas = tx;
+	}
+
+	// light accumulation buffer
+	{
+		const tx = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, tx);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		const level = 0;
+		const internalFormat = gl.RGBA;
+		const width = gl.canvas.clientWidth;
+		const height = gl.canvas.clientHeight;
+		const border = 0;
+		const srcFormat = gl.RGBA;
+		const srcType = gl.FLOAT;
+		const pixel = null;  // empty
+		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                width, height, border, srcFormat, srcType, pixel);
+		tx_obj.light_val = tx;
+	}
+
 	return tx_obj;
 }
 
@@ -206,6 +258,7 @@ function init_deferred_framebuffer(gl, tx) {
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT1_WEBGL, gl.TEXTURE_2D, tx.bufs[1], 0);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT2_WEBGL, gl.TEXTURE_2D, tx.bufs[2], 0);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT3_WEBGL, gl.TEXTURE_2D, tx.bufs[3], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT4_WEBGL, gl.TEXTURE_2D, tx.bufs[4], 0);
 
 	// DRAW BUFFERS
 	gl.ext.db.drawBuffersWEBGL([
@@ -213,6 +266,7 @@ function init_deferred_framebuffer(gl, tx) {
 		gl.ext.db.COLOR_ATTACHMENT1_WEBGL, 
 		gl.ext.db.COLOR_ATTACHMENT2_WEBGL,
 		gl.ext.db.COLOR_ATTACHMENT3_WEBGL,
+		gl.ext.db.COLOR_ATTACHMENT4_WEBGL,
 	]);
 
 	// unbind
@@ -225,7 +279,7 @@ function init_ssao_pass_framebuffer(gl, ssao_pass_texture) {
 	const fb = gl.createFramebuffer();
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_pass_texture, 0);;
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_pass_texture, 0);
 
 	// unbind
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -237,7 +291,31 @@ function init_ssao_blur_framebuffer(gl, ssao_blur_texture) {
 	const fb = gl.createFramebuffer();
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_blur_texture, 0);;
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ssao_blur_texture, 0);
+
+	// unbind
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	return fb;
+}
+
+function init_shadow_mapping_framebuffer(gl, shadow_atlas_texture) {
+	const fb = gl.createFramebuffer();
+	// Bind GBuffer textures
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadow_atlas_texture, 0);
+
+	// unbind
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	return fb;
+}
+
+function init_light_intensity_framebuffer(gl, light_intensity_texture) {
+	const fb = gl.createFramebuffer();
+	// Bind GBuffer textures
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, light_intensity_texture, 0);
 
 	// unbind
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -315,7 +393,7 @@ function gen_ssao_kernel_and_noise(gl, tx_obj) {
 function main_init(gl, room_list) {
 	// SHADER INIT
 	const shaders = {};
-	const default_shader_l = {
+	/*const default_shader_l = {
 		attribs: {
 			vertex_pos: 'aVertexPosition',
 			normal_dir: 'aNormalDirection',
@@ -326,11 +404,13 @@ function main_init(gl, room_list) {
 			model_m: 'uModel'
 		}
 	};
-	shaders.default_shader = init_shader_program(gl, default_shader_v, default_shader_f, default_shader_l);
+	shaders.default_shader = init_shader_program(gl, default_shader_v, default_shader_f, default_shader_l);*/
 	const deferred_pass_l = {
 		attribs: {
 			vertex_pos: 'a_vert',
 			normal_dir: 'a_norm',
+			albedo: 'a_albedo',
+			rough_metal: 'a_rough_metal',
 		},
 		uniforms: {
 			projection_m: 'u_proj',
@@ -378,6 +458,23 @@ function main_init(gl, room_list) {
 	shaders.ssao_blur = init_shader_program(gl, ssao_blur_v, 
 		gen_ssao_blur_f(gl.canvas.clientWidth, gl.canvas.clientHeight),
 		ssao_blur_l);
+	const spotlight_pass_l = {
+		attribs: {
+			vertex_pos: 'a_vert',
+		},
+		uniforms: {
+			pos_tex: 'u_pos_tex',
+			norm_tex: 'u_norm_tex',
+			albedo_tex: 'u_albedo_tex',
+			rough_metal_tex: 'u_rough_metal_tex',
+			light_pos: 'u_light_pos',
+			light_dir: 'u_light_dir',
+			light_i_angle: 'u_light_i_angle',
+			light_o_angle: 'u_light_o_angle',
+			light_falloff: 'u_light_falloff',
+		}
+	}
+	shaders.spotlight_pass = init_shader_program(gl, spotlight_pass_v, spotlight_pass_f, spotlight_pass_l);
 
 	// BUFFER INIT
 	const buffer_data = init_buffers(gl, room_list);
@@ -394,6 +491,7 @@ function main_init(gl, room_list) {
   	const deferred_fb = init_deferred_framebuffer(gl, tx);
   	const ssao_pass_fb = init_ssao_pass_framebuffer(gl, tx.ssao_pass);
   	const ssao_blur_fb = init_ssao_blur_framebuffer(gl, tx.ssao_blur);
+  	const light_int_fb = init_light_intensity_framebuffer(gl, tx.light_val);
 
   	// SSAO DATA INIT
   	const sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
@@ -408,6 +506,7 @@ function main_init(gl, room_list) {
 			deferred: deferred_fb,
 			ssao_pass: ssao_pass_fb,
 			ssao_blur: ssao_blur_fb,
+			light_int: light_int_fb,
 		},
 		ssao_kernel: sample_kernel,
 	}
@@ -431,9 +530,15 @@ function frame_tick(gl, program_data) {
 		R.render(gl, program_data, t);
 		gallery_animation_id = requestAnimationFrame(T);
 
-		frame_count++;
 		if(time_of_last_tracked_frame < 0)
 			time_of_last_tracked_frame = prev_t;
+		frame_count++;
+		// Reset every 5 seconds
+		if(t - time_of_last_tracked_frame > 5000) {
+			console.log(`fps: ${getFPS()}`);
+			resetFPS();
+			time_of_last_tracked_frame = t;
+		}
 		// Set prev_t
 		prev_t = t;
 	}
@@ -452,23 +557,45 @@ function main() {
   	// ENABLE EXTENSIONS
   	const ext_drawbuffers = gl.getExtension('WEBGL_draw_buffers');
   	if(!ext_drawbuffers) {
-  		alert('Unsupported WebGL extension WEBGL_draw_buffers, please try another browser (Chrome, Firefox v28).');
+  		alert('Unsupported WebGL extension WEBGL_draw_buffers, please try another updated browser (Chrome, Firefox v28).');
   		return;
   	}
   	const ext_oesfloat = gl.getExtension('OES_texture_float');
   	if(!ext_oesfloat) {
-  		alert('Unsupported WebGL extension OES_texture_float, please try another browser (Chrome, Firefox).');
+  		alert('Unsupported WebGL extension OES_texture_float, please try another updated browser (Chrome, Firefox).');
+  		return;
+  	}
+  	const ext_oesfloat_linear = gl.getExtension('OES_texture_float_linear');
+  	if(!ext_oesfloat_linear) {
+  		alert('Unsupported WebGL extension OES_texture_float_linear, please try another updated browser (Chrome, Firefox).');
+  		return;
+  	}
+  	const ext_color_buffer_float = gl.getExtension('WEBGL_color_buffer_float');
+  	if(!ext_oesfloat) {
+  		alert('Unsupported WebGL extension WEBGL_color_buffer_float, please try another updated browser (Chrome, Firefox).');
   		return;
   	}
   	const ext_depth_texture = gl.getExtension('WEBGL_depth_texture');
   	if(!ext_depth_texture) {
-  		alert('Unsupported WebGL extension WEBGL_depth_texture, please try another browser (Chrome, Firefox).');
+  		alert('Unsupported WebGL extension WEBGL_depth_texture, please try another updated browser (Chrome, Firefox).');
   		return;
   	}
+  	/*const oes_texture_half_float = gl.getExtension('OES_texture_half_float')
+  	if(!oes_texture_half_float) {
+  		alert('Unsupported WebGL extension OES_texture_half_float, please try another updated browser (Chrome, Firefox).');
+  		return;
+  	}*/
+  	/*const ext_color_buffer_half_float = gl.getExtension('EXT_color_buffer_half_float');
+  	if(!ext_color_buffer_half_float) {
+  		alert('Unsupported WebGL extension EXT_color_buffer_half_float, please try another updated browser (Chrome, Firefox).');
+  		return;
+  	}*/
   	// EXPOSE EXTENSIONS
   	gl.ext = {
   		db: ext_drawbuffers,
   		dt: ext_depth_texture,
+  		//thf: oes_texture_half_float,
+  		//hf: ext_color_buffer_half_float,
   	}
 
 
@@ -478,7 +605,10 @@ function main() {
  	for(let i=0; i<room_config.length; i++) {
  		const r = room_config[0];
  		room_list.push(
- 			new ROOM.Room(r.wall_paths, r.wall_height, r.floor_indices, r.room_scale)
+ 			new ROOM.Room(
+ 				r.wall_paths, r.wall_height, r.floor_indices, r.room_scale,
+ 				r.wall_albedo, r.wall_rough_metal, r.floor_albedo, r.floor_rough_metal, r.ceil_albedo, r.ceil_rough_metal,
+ 				r.spotlights)
  		);
  	}
   	console.log(room_list);
@@ -501,6 +631,7 @@ function main() {
   	// EVENT HANDLERS (PLAY AND STOP BUTTONS)
   	document.querySelector('#play').onclick = function() {
 		if(gallery_animation_id === null) {
+			resetFPS();
 			gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
 		}
 	}

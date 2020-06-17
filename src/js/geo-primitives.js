@@ -1,19 +1,5 @@
 import * as M from './gl-matrix.js';
 
-// UTILITES
-// ====================
-export function interlace_2(a, b, a_stride, b_stride, count) {
-	let interlaced = [];
-	const full_stride = a_stride+b_stride;
-	for(let i=0; i<count; i++) {
-		for(let j=0; j<a_stride; j++)
-			interlaced.push(a[i*a_stride + j]);
-		for(let j=0; j<b_stride; j++)
-			interlaced.push(b[i*b_stride + j]);
-	}
-	return interlaced;
-}
-
 // PRIMITIVE GENERATORS
 // ====================
 function generate_cube_primitive() {

@@ -27,6 +27,7 @@ uniform sampler2D u_rough_metal_tex;
 // light uniforms
 uniform vec3 u_light_pos;
 uniform vec3 u_light_dir;
+uniform vec3 u_light_color;
 uniform float u_light_i_angle;
 uniform float u_light_o_angle;
 uniform float u_light_falloff;
@@ -122,7 +123,7 @@ void main() {
     Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     */
     
-    gl_FragColor = vec4(vec3(I), 1.0);
+    gl_FragColor = vec4(I*u_light_color*A, 1.0);
 }
 
 `;

@@ -468,6 +468,7 @@ function main_init(gl, room_list) {
 			rough_metal_tex: 'u_rough_metal_tex',
 			light_pos: 'u_light_pos',
 			light_dir: 'u_light_dir',
+			light_color: 'u_light_color',
 			light_i_angle: 'u_light_i_angle',
 			light_o_angle: 'u_light_o_angle',
 			light_falloff: 'u_light_falloff',

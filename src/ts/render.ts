@@ -277,6 +277,7 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	M.vec4.set(v4, light.dir[0], light.dir[1], light.dir[2], 0);
 	M.vec4.transformMat4(v4, v4, view_m);
 	gl.uniform3f(shader.uniforms.light_dir, v4[0], v4[1], v4[2]);
+	gl.uniform3fv(shader.uniforms.light_color, light.color);
 	gl.uniform1f(shader.uniforms.light_i_angle, light.i_angle);
 	gl.uniform1f(shader.uniforms.light_o_angle, light.o_angle);
 	gl.uniform1f(shader.uniforms.light_falloff, light.falloff);

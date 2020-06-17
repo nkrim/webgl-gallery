@@ -7,6 +7,7 @@ export class Spotlight {
 	// --------------------
 	pos:		vec3;
 	dir:		vec3;
+	color:		vec3;
 	i_angle:	number;
 	o_angle:	number;
 	falloff:	number;
@@ -15,13 +16,13 @@ export class Spotlight {
 	// -----------
 	constructor(	position:			vec3,
 					direction:			vec3,
+					color:				vec3,
 					inner_angle_deg:	number,
 					outer_angle_deg:	number,
 					falloff:			number) {
-		this.pos = M.vec3.create();
-		M.vec3.copy(this.pos, position);
-		this.dir = M.vec3.create();
-		M.vec3.normalize(this.dir, direction);
+		this.pos = M.vec3.create(); M.vec3.copy(this.pos, position);
+		this.dir = M.vec3.create(); M.vec3.normalize(this.dir, direction);
+		this.color = M.vec3.create(); M.vec3.copy(this.color, color);
 		this.i_angle = Math.cos(inner_angle_deg*DEG_TO_RAD/2);
 		this.o_angle = Math.cos(outer_angle_deg*DEG_TO_RAD/2);
 		this.falloff = falloff;

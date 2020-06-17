@@ -90,7 +90,6 @@ function init_buffers(gl, room_list) {
 			[3, 				 3, 			    3,                2],
 			room.mesh_count_v
 		);
-		console.log(interlaced);
 		for(let j=0; j<interlaced.length; j++)
 			all_room_vertices.push(interlaced[j]);
 		Array.prototype.push.apply(all_room_indices, room.mesh_indices);
@@ -98,7 +97,6 @@ function init_buffers(gl, room_list) {
 		room.buffer_offset_v = offset_v;
 		room.buffer_offset_i = offset_i;
 	}
-	console.log(all_room_vertices);
 	// vertex buffer
 	const room_vertex_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ARRAY_BUFFER, room_vertex_buffer);
@@ -311,11 +309,11 @@ function init_shadow_mapping_framebuffer(gl, shadow_atlas_texture) {
 	return fb;
 }
 
-function init_light_intensity_framebuffer(gl, light_intensity_texture) {
+function init_light_value_framebuffer(gl, light_value_texture) {
 	const fb = gl.createFramebuffer();
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, light_intensity_texture, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, light_value_texture, 0);
 
 	// unbind
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -429,6 +427,7 @@ function main_init(gl, room_list) {
 			norm_tex: 'u_norm_tex',
 			color_tex: 'u_color_tex',
 			ssao_tex: 'u_ssao_tex',
+			light_tex: 'u_light_tex',
 		}
 	}
 	shaders.deferred_combine = init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l);
@@ -491,7 +490,7 @@ function main_init(gl, room_list) {
   	const deferred_fb = init_deferred_framebuffer(gl, tx);
   	const ssao_pass_fb = init_ssao_pass_framebuffer(gl, tx.ssao_pass);
   	const ssao_blur_fb = init_ssao_blur_framebuffer(gl, tx.ssao_blur);
-  	const light_int_fb = init_light_intensity_framebuffer(gl, tx.light_val);
+  	const light_val_fb = init_light_value_framebuffer(gl, tx.light_val);
 
   	// SSAO DATA INIT
   	const sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
@@ -506,7 +505,7 @@ function main_init(gl, room_list) {
 			deferred: deferred_fb,
 			ssao_pass: ssao_pass_fb,
 			ssao_blur: ssao_blur_fb,
-			light_int: light_int_fb,
+			light_val: light_val_fb,
 		},
 		ssao_kernel: sample_kernel,
 	}

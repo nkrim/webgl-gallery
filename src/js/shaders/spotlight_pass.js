@@ -81,10 +81,13 @@ void main() {
 	// spotlight intensity value
 	vec3 l_to_p = normalize(P - u_light_pos);
     float cos_angle = dot(l_to_p, u_light_dir);
-	float I = step(u_light_o_angle-0.0001, cos_angle) * pow(
-		  (cos_angle - u_light_o_angle) 
-		/ (u_light_i_angle - u_light_o_angle)
-		, u_light_falloff);
+	float I = 
+        step(0.0, dot(N, -l_to_p))
+        * step(u_light_o_angle-0.0001, cos_angle) 
+        * pow(
+    		  (cos_angle - u_light_o_angle) 
+    		/ (u_light_i_angle - u_light_o_angle)
+		    , u_light_falloff);
 
 
 	/*
@@ -119,7 +122,7 @@ void main() {
     Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     */
     
-    gl_FragColor = vec4(vec3(A), I);
+    gl_FragColor = vec4(vec3(I), 1.0);
 }
 
 `;

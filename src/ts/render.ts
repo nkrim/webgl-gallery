@@ -232,7 +232,7 @@ function ssao_blur(gl:any, pd:any):void {
 ===================== */
 function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	// set fbo
-	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.light_int);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.light_val);
 
 	// use program
 	const shader = pd.shaders.spotlight_pass;
@@ -331,6 +331,9 @@ function quad_deferred_combine(gl:any, pd:any):void {
 	gl.activeTexture(gl.TEXTURE3);	// ssao texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_blur);
 	gl.uniform1i(shader.uniforms.ssao_tex, 3);
+	gl.activeTexture(gl.TEXTURE4);	// light texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.light_val);
+	gl.uniform1i(shader.uniforms.light_tex, 4);
 
 	// draw
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)

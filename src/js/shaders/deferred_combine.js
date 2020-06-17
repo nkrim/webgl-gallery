@@ -33,6 +33,7 @@ uniform sampler2D u_pos_tex;
 uniform sampler2D u_norm_tex;
 uniform sampler2D u_color_tex;
 uniform sampler2D u_ssao_tex;
+uniform sampler2D u_light_tex;
 
 vec3 diffuse(vec3 N, vec3 L, vec3 C) {
 	return max(dot(N, L), 0.0) * C;
@@ -41,10 +42,11 @@ vec3 diffuse(vec3 N, vec3 L, vec3 C) {
 void main() {
 	vec3 norm = texture2D(u_norm_tex, v_texcoord).xyz; 
 	vec3 obj_color = texture2D(u_color_tex, v_texcoord).xyz;
+	vec3 light_val = texture2D(u_light_tex, v_texcoord).xyz;
 
-	vec3 diffuse_v = obj_color * diffuse(norm, v_to_sun, sun_c);
+	//vec3 diffuse_v = obj_color * diffuse(norm, v_to_sun, sun_c);
 	vec3 ambient_v = obj_color * ambient_i * ambient_c * texture2D(u_ssao_tex, v_texcoord).x;
-  	gl_FragColor = vec4((ambient_v + diffuse_v), 1.0);
+  	gl_FragColor = vec4((ambient_v + max(vec3(0.0), light_val-vec3(ambient_i))), 1.0);
 }
 
 `;

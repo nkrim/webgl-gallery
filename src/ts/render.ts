@@ -291,7 +291,7 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 ================================== */
 function quad_deferred_combine(gl:any, pd:any):void {
 	// set fbo
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.deferred_combine);
 
 	// set program
 	const shader = pd.shaders.deferred_combine;
@@ -341,6 +341,42 @@ function quad_deferred_combine(gl:any, pd:any):void {
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 }
 
+/* FXAA PASS
+==================== */
+function fxaa_pass(gl:any, pd:any):void {
+	// set fbo
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);//pd.fb.fxaa_pass);
+
+	// use program
+	const shader = pd.shaders.fxaa_pass;
+	gl.useProgram(shader.prog);
+
+	// clear constants
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);  
+	gl.clearDepth(1.0);                 
+	gl.disable(gl.DEPTH_TEST);          
+	gl.enable(gl.CULL_FACE);
+	gl.cullFace(gl.BACK);
+	// clear
+	gl.clear(gl.COLOR_BUFFER_BIT);
+
+	// vertex attrib for positions (texcoords derived from positions)
+	gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
+	gl.vertexAttribPointer(
+		shader.attribs.vertex_pos,
+		2, gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(shader.attribs.vertex_pos);
+
+	// texture set
+	gl.activeTexture(gl.TEXTURE0);	// ssao texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.screen_tex);
+	gl.uniform1i(shader.uniforms.scren_tex, 0);
+
+	// draw
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+}
+
 /* FINAL RENDER FUNCTION
 ======================== */
 function render(gl:any, pd:any):void {
@@ -362,6 +398,9 @@ function render(gl:any, pd:any):void {
 
 	// combine gbuffer contents on quad
 	quad_deferred_combine(gl, pd);
+
+	// fxaa post-process
+	fxaa_pass(gl, pd);
 
 }
 

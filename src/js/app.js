@@ -437,6 +437,7 @@ let gallery_animation_id = null;
 let prev_t = -1;
 let frame_count = 0;
 let time_of_last_tracked_frame = -1;
+const fps_write_interval = 2000;
 function frame_tick(gl, program_data) {
 	function T(t) {
 		// Give grace-frame for accurate dt
@@ -452,7 +453,7 @@ function frame_tick(gl, program_data) {
 			time_of_last_tracked_frame = prev_t;
 		frame_count++;
 		// Reset every 5 seconds
-		if(t - time_of_last_tracked_frame > 5000) {
+		if(t - time_of_last_tracked_frame > fps_write_interval) {
 			console.log(`fps: ${getFPS()}`);
 			resetFPS();
 			time_of_last_tracked_frame = t;

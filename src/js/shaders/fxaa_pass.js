@@ -1,6 +1,7 @@
 export const FXAA_CONTRAST_THRESHOLD = '0.0312';
 export const FXAA_RELATIVE_THRESHOLD = '0.166';
 export const FXAA_FILTER_COEFFICIENT = '1.0';
+export const FXAA_EDGE_CRAWL_STEPS = '10';
 export const fxaa_pass_v = `
 #version 100
 
@@ -18,16 +19,21 @@ void main() {
 export function gen_fxaa_pass_f(viewport_width, viewport_height) {return `
 precision highp float;
 
-// noise sampling constants
+// sampling constants
 const float viewport_width = ${viewport_width}.0;
 const float viewport_height = ${viewport_height}.0;
 const vec2 texel_size = vec2(1.0/viewport_width, 1.0/viewport_height);
+
+// iteration constants
+const int num_edge_iters = ${FXAA_EDGE_CRAWL_STEPS}-1;
+
 
 // varyings
 varying vec2 v_texcoord;
 
 // texture uniforms
 uniform sampler2D u_screen_tex;
+
 
 // sample function
 float sample_lum(vec2 uv) {
@@ -36,8 +42,9 @@ float sample_lum(vec2 uv) {
 
 // main function
 void main() {
-	// main subpixel blending
-	// ----------------------
+
+	// PRIMARY SUB-PIXEL BLENDING
+	// --------------------------
 	// sample luminance data from cross pattern around fragment (from green value)
 	vec3 original_pixel = texture2D(u_screen_tex, v_texcoord).rgb;
 	float l_m = original_pixel.g;
@@ -51,7 +58,7 @@ void main() {
 	float contrast = l_high - l_low;
 
 	if(contrast < ${FXAA_CONTRAST_THRESHOLD} || contrast < ${FXAA_RELATIVE_THRESHOLD}*l_high) {
-		discard;
+		//discard;
 		gl_FragColor = vec4(original_pixel, 1.0);
 		return;
 	}
@@ -67,9 +74,10 @@ void main() {
 	// calculate blend_factor from difference of average and middle pixel, normalized by contrast
 	float blend_factor = abs(sample_average - l_m);
 	blend_factor = smoothstep(0.0, 1.0, blend_factor/contrast);
-	blend_factor *= blend_factor * ${FXAA_FILTER_COEFFICIENT};
+	float pixel_blend = blend_factor * blend_factor * ${FXAA_FILTER_COEFFICIENT};
 
-	// calculate edge direction
+	// EDGE DIRECTION CALCULATION
+	// --------------------------
 	float horiz = abs(l_n + l_s - 2.0*l_m)*2.0 +
 					abs(l_ne + l_se - 2.0*l_e) +
 					abs(l_nw + l_sw - 2.0*l_w);
@@ -93,11 +101,11 @@ void main() {
 		opp_lum = pos_lum;
 		gradient = pos_grad;
 	}
-	float pixel_blend = pixel_step * blend_factor;
 
-	// longer edge blending factor
+
+	// LONGER EDGE BLENDING FACTOR
 	// ---------------------------
-	//
+	// set up edge stepping
 	vec2 uv_edge = v_texcoord;
 	vec2 edge_step;
 	if(is_horiz) {
@@ -112,20 +120,70 @@ void main() {
 	float edge_lum = (l_m + opp_lum) * 0.5;
 	float grad_thresh = gradient * 0.25;
 	// begin edge crawl
-	vec2 e_uv = uv_edge + edge_step;
-	float e_lum_delta = sample_lum(e_uv) - edge_lum;
-	bool e_at_end = abs(e_lum_delta) >= grad_thresh;
+	vec2 pe_uv = uv_edge + edge_step;
+	vec2 ne_uv = uv_edge - edge_step;
+	float pe_lum_delta = sample_lum(pe_uv) - edge_lum;
+	float ne_lum_delta = sample_lum(ne_uv) - edge_lum;
+	bool pe_at_end = abs(pe_lum_delta) >= grad_thresh;
+	bool ne_at_end = abs(ne_lum_delta) >= grad_thresh;
+	// complete edge crawl
+	for(int i=0; i<num_edge_iters; i++) {
+		if(!pe_at_end) {
+			pe_uv += edge_step;
+			pe_lum_delta = sample_lum(pe_uv) - edge_lum;
+			pe_at_end = abs(pe_lum_delta) >= grad_thresh;
+		}
+		if(!ne_at_end) {
+			ne_uv -= edge_step;
+			ne_lum_delta = sample_lum(ne_uv) - edge_lum;
+			ne_at_end = abs(ne_lum_delta) >= grad_thresh;
+		}
+	}
+	// reverse edge crawl
+	
+	for(int i=0; i<num_edge_iters; i++) {
+		
+	}
 
-	gl_FragColor = vec4(vec3(e_at_end), 1.0);
-	return;
+	// calculate edge end distance
+	float pe_dist, ne_dist;
+	if(is_horiz) {
+		pe_dist = pe_uv.x - v_texcoord.x;
+		ne_dist = v_texcoord.x - ne_uv.x;
+	}
+	else {
+		pe_dist = pe_uv.y - v_texcoord.y;
+		ne_dist = v_texcoord.y - ne_uv.y;
+	}
+	float min_dist;
+	bool delta_sign;
+	if(pe_dist <= ne_dist) {
+		min_dist = pe_dist;
+		delta_sign = pe_lum_delta >= 0.0;
+	}
+	else {
+		min_dist = ne_dist;
+		delta_sign = ne_lum_delta >= 0.0;
+	}
+	// discard blurring on pixels moving away from edge
+	float edge_blend = (delta_sign == ((l_m - edge_lum) >= 0.0)) ?
+		0.0 : 0.5 - min_dist/(pe_dist + ne_dist);
 
+
+	// FINAL COMPOSITION
+	// -----------------
+	// determine final blend w max of pixel blend and edge blend
+	float final_blend = max(pixel_blend, edge_blend);
+
+	// gl_FragColor = vec4(vec3(edge_blend*2.0), 1.0);
+	// return;
 
 	// adjust uv and sample final color from screen
 	vec2 final_uv = v_texcoord;
 	if(is_horiz)
-		final_uv.y += pixel_blend;
+		final_uv.y += final_blend * pixel_step;
 	else
-		final_uv.x += pixel_blend;
+		final_uv.x += final_blend * pixel_step;
 	
 	vec3 final_sample = texture2D(u_screen_tex, final_uv).xyz;
 	gl_FragColor = vec4(vec3(final_sample), 1.0);

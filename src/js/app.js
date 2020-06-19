@@ -466,7 +466,7 @@ function frame_tick(gl, program_data) {
 function main() {
 	// Setup context
 	const canvas = document.querySelector('#glCanvas');
-	const gl = canvas.getContext('webgl');
+	const gl = canvas.getContext('webgl', {antialias: false});
 	if (gl === null) {
    		alert("Unable to initialize WebGL. Your browser or machine may not support it.");
     	return;

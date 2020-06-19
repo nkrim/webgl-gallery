@@ -29,14 +29,22 @@ varying vec2 v_texcoord;
 // texture uniforms
 uniform sampler2D u_screen_tex;
 
+// sample function
+float sample_lum(vec2 uv) {
+	return texture2D(u_screen_tex, uv).g;
+}
+
+// main function
 void main() {
+	// main subpixel blending
+	// ----------------------
 	// sample luminance data from cross pattern around fragment (from green value)
 	vec3 original_pixel = texture2D(u_screen_tex, v_texcoord).rgb;
 	float l_m = original_pixel.g;
-	float l_n = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(0.0,1.0))).g;
-	float l_e = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(1.0,0.0))).g;
-	float l_s = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(0.0,-1.0))).g;
-	float l_w = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(-1.0,0.0))).g;
+	float l_n = sample_lum(v_texcoord + (texel_size*vec2(0.0,1.0)));
+	float l_e = sample_lum(v_texcoord + (texel_size*vec2(1.0,0.0)));
+	float l_s = sample_lum(v_texcoord + (texel_size*vec2(0.0,-1.0)));
+	float l_w = sample_lum(v_texcoord + (texel_size*vec2(-1.0,0.0)));
 	// calculate contrast
 	float l_high = max(max(max(max(l_m, l_n), l_e), l_s), l_w);
 	float l_low = min(min(min(min(l_m, l_n), l_e), l_s), l_w);
@@ -44,14 +52,14 @@ void main() {
 
 	if(contrast < ${FXAA_CONTRAST_THRESHOLD} || contrast < ${FXAA_RELATIVE_THRESHOLD}*l_high) {
 		gl_FragColor = vec4(original_pixel, 1.0);
-		return;
+		//return;
 	}
 
 	// sample corner data now that some pixels have been discarded
-	float l_ne = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(1.0,1.0))).g;
-	float l_se = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(1.0,-1.0))).g;
-	float l_sw = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(-1.0,-1.0))).g;
-	float l_nw = texture2D(u_screen_tex, v_texcoord + (texel_size*vec2(-1.0,1.0))).g;
+	float l_ne = sample_lum(v_texcoord + (texel_size*vec2(1.0,1.0)));
+	float l_se = sample_lum(v_texcoord + (texel_size*vec2(1.0,-1.0)));
+	float l_sw = sample_lum(v_texcoord + (texel_size*vec2(-1.0,-1.0)));
+	float l_nw = sample_lum(v_texcoord + (texel_size*vec2(-1.0,1.0)));
 	// calculate average of all samples added with double weight on the cross
 	float sample_average = 2.0*(l_n + l_e + l_s + l_w) + l_ne + l_nw + l_se + l_sw;
 	sample_average /= 12.0;
@@ -73,9 +81,43 @@ void main() {
 	float pos_grad = abs(pos_lum - l_m);
 	float neg_grad = abs(neg_lum - l_m);
 	float pixel_step = is_horiz ? texel_size.y : texel_size.x;
-	if(pos_grad < neg_grad)
+	// use gradient to determine pos/negative direction, store opposite for longer edge blend
+	float opp_lum, gradient;
+	if(pos_grad < neg_grad) {
 		pixel_step *= -1.0;
+		opp_lum = neg_lum;
+		gradient = neg_grad;
+	}
+	else {
+		opp_lum = pos_lum;
+		gradient = pos_grad;
+	}
 	float pixel_blend = pixel_step * blend_factor;
+
+	// longer edge blending factor
+	// ---------------------------
+	//
+	vec2 uv_edge = v_texcoord;
+	vec2 edge_step;
+	if(is_horiz) {
+		uv_edge.y += pixel_step * 0.5;
+		edge_step = vec2(texel_size.x, 0.0);
+	}
+	else {
+		uv_edge.x += pixel_step * 0.5;
+		edge_step = vec2(0.0, texel_size.y);
+	}
+	// get average along edge at middle point and develop threshold
+	float edge_lum = (l_m + opp_lum) * 0.5;
+	float grad_thresh = gradient * 0.25;
+	// begin edge crawl
+	vec2 e_uv = uv_edge + edge_step;
+	float e_lum_delta = sample_lum(e_uv) - edge_lum;
+	bool e_at_end = abs(e_lum_delta) >= grad_thresh;
+
+	gl_FragColor = vec4(vec3(e_at_end), 1.0);
+	return;
+
 
 	// adjust uv and sample final color from screen
 	vec2 final_uv = v_texcoord;

@@ -51,8 +51,9 @@ void main() {
 	float contrast = l_high - l_low;
 
 	if(contrast < ${FXAA_CONTRAST_THRESHOLD} || contrast < ${FXAA_RELATIVE_THRESHOLD}*l_high) {
+		discard;
 		gl_FragColor = vec4(original_pixel, 1.0);
-		//return;
+		return;
 	}
 
 	// sample corner data now that some pixels have been discarded

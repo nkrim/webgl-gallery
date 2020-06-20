@@ -17,7 +17,7 @@
 			#glCanvas {
 				margin: 40px auto;
 			}
-			#play, #stop {
+			#playStop {
 				position: relative;
 				width: 120px;
 				height: 40px;
@@ -27,7 +27,7 @@
 				cursor: pointer;
 				background: #ccc;
 			}
-			#play p, #stop p {
+			#playStop p {
 				position: absolute;
 				top: 50%;
 				left: 50%;
@@ -40,10 +40,7 @@
 		<div class="canvas-container">
 			<canvas id="glCanvas" width="640" height="480"></canvas>
 		</div>
-		<div id="play">
-			<p>PLAY</p>
-		</div>
-		<div id="stop">
+		<div id="playStop">
 			<p>STOP</p>
 		</div>
 		<!-- shader loading -->

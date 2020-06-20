@@ -548,16 +548,18 @@ function main() {
   	gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
 
   	// EVENT HANDLERS (PLAY AND STOP BUTTONS)
-  	document.querySelector('#play').onclick = function() {
+  	document.querySelector('#playStop').onclick = function() {
 		if(gallery_animation_id === null) {
 			resetFPS();
 			gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
+			this.children[0].textContent = "STOP";
 		}
-	}
-	document.querySelector('#stop').onclick = function() {
-		cancelAnimationFrame(gallery_animation_id);
-		gallery_animation_id = null;
-		prev_t = -1;
+		else {
+			cancelAnimationFrame(gallery_animation_id);
+			gallery_animation_id = null;
+			prev_t = -1;
+			this.children[0].textContent = "PLAY";
+		}
 	}
 }
 

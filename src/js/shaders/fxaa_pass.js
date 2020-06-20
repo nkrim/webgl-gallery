@@ -1,6 +1,39 @@
-export const FXAA_CONTRAST_THRESHOLD = '0.0312';
+/* FXAA NOTES
+=============
+- input screen texture (and these fxaa operations) should be in gamma space for best results
+	- however, output should always be in linear
+*/
+
+// TUNING CONSTANTS
+export const FXAA_CONTRAST_THRESHOLD = '0.0833';
 export const FXAA_RELATIVE_THRESHOLD = '0.166';
-export const FXAA_FILTER_COEFFICIENT = '1.0';
+export const FXAA_FILTER_COEFFICIENT = '0.75';
+
+// QUALITY OPTIONS
+export const FXAA_QUALITY_SETTINGS = {
+	DEFAULT_QUALITY: {
+		edge_step_count: '10',
+		edge_steps: ['1.0', '1.5', '2.0', '2.0', '2.0', '2.0', '2.0', '2.0', '2.0', '4.0'],
+		edge_guess: '8.0',
+	},
+	LOW_QUALITY: {
+		edge_step_count: '4',
+		edge_steps: ['1.0', '1.5', '2.0', '2.0'],
+		edge_guess: '4.0',
+	},
+};
+
+// LOCATIONS
+export const fxaa_pass_l = {
+	attribs: {
+		vertex_pos: 'a_vert',
+	},
+	uniforms: {
+		screen_tex: 'u_screen_tex',
+	}
+}
+
+// VERTEX SHADER
 export const fxaa_pass_v = `
 #version 100
 
@@ -12,17 +45,15 @@ void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
 	gl_Position = vec4(a_vert, 1.0);
 }
-
 `;
 
-export function gen_fxaa_pass_f(viewport_width, viewport_height, quality='DEFAULT_QUALITY') {
-	let edge_step_count = '10';
-	let edge_steps = ['1.0', '1.5', '2.0', '2.0', '2.0', '2.0', '2.0', '2.0', '2.0', '4.0'];
-	let edge_guess = '8.0';
-	if(quality === 'LOW_QUALITY') {
-		edge_step_count = '4';
-		edge_steps = ['1.0', '1.5', '2.0', '4.0'];
-		edge_guess = '12.0';
+// FRAGMENT SHADER (generator)
+export function gen_fxaa_pass_f(viewport_width, viewport_height, quality=FXAA_QUALITY_SETTINGS.DEFAULT_QUALITY) {
+	if(		quality.edge_step_count === undefined || 
+			quality.edge_steps === undefined || 
+			quality.edge_guess === undefined) {
+		console.error('ERROR: gen_fxaa_pass_f: quality object does not contain all expected fields');
+		return '';
 	}
 	const a = `
 precision highp float;
@@ -109,8 +140,8 @@ void main() {
 	float edge_lum = (l_m + opp_lum) * 0.5;
 	float grad_thresh = gradient * 0.25;
 	// begin edge crawl
-	vec2 pe_uv = uv_edge + edge_step * ${edge_steps[0]};
-	vec2 ne_uv = uv_edge - edge_step * ${edge_steps[0]};
+	vec2 pe_uv = uv_edge + edge_step * ${quality.edge_steps[0]};
+	vec2 ne_uv = uv_edge - edge_step * ${quality.edge_steps[0]};
 	float pe_lum_delta = sample_lum(pe_uv) - edge_lum;
 	float ne_lum_delta = sample_lum(ne_uv) - edge_lum;
 	bool pe_at_end = abs(pe_lum_delta) >= grad_thresh;
@@ -122,26 +153,26 @@ void main() {
 
 	// unroll edge crawl loops
 	let b = '';
-	for(let i=0; i<edge_step_count-1; i++) {
+	for(let i=0; i<quality.edge_step_count-1; i++) {
 		b += `
 	if(!pe_ne_at_end) {
-		if(!pe_at_end) pe_uv += edge_step * ${edge_steps[i]};
+		if(!pe_at_end) pe_uv += edge_step * ${quality.edge_steps[i]};
 		if(!pe_at_end) pe_lum_delta = sample_lum(pe_uv) - edge_lum;
 		if(!pe_at_end) pe_at_end = abs(pe_lum_delta) >= grad_thresh;
-		if(!ne_at_end) ne_uv -= edge_step * ${edge_steps[i]};
+		if(!ne_at_end) ne_uv -= edge_step * ${quality.edge_steps[i]};
 		if(!ne_at_end) ne_lum_delta = sample_lum(ne_uv) - edge_lum;
 		if(!ne_at_end) ne_at_end = abs(ne_lum_delta) >= grad_thresh;
 		pe_ne_at_end = pe_at_end && ne_at_end;
 	`;
 	}
-	for(let i=0; i<edge_step_count-1; i++) {
+	for(let i=0; i<quality.edge_step_count-1; i++) {
 		b += `}`;
 	}
 
 	const c = `
 	// push one texel further if not found
-	if(!pe_at_end) pe_uv += edge_step * ${edge_guess};
-	if(!ne_at_end) ne_uv += edge_step * ${edge_guess};
+	if(!pe_at_end) pe_uv += edge_step * ${quality.edge_guess};
+	if(!ne_at_end) ne_uv += edge_step * ${quality.edge_guess};
 
 	// calculate edge end distance
 	float pe_dist, ne_dist;

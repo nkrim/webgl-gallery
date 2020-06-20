@@ -1,3 +1,14 @@
+// LOCATIONS
+export const ssao_blur_l = {
+	attribs: {
+		vertex_pos: 'a_vert',
+	},
+	uniforms: {
+		ssao_tex: 'u_ssao_tex',
+	}
+}
+
+// VERTEX SHADER
 export const ssao_blur_v = `
 #version 100
 
@@ -9,9 +20,9 @@ void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
 	gl_Position = vec4(a_vert, 1.0);
 }
-
 `;
 
+// FRAGMENT SHADER (generator)
 export function gen_ssao_blur_f(screen_width, screen_height) {
 let a = `
 precision highp float;

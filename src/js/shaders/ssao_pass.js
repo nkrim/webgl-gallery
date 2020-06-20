@@ -1,5 +1,22 @@
+// TUNING CONSTANTS
 export const SSAO_KERNEL_SIZE = 32;
 export const SSAO_SAMPLE_RADIUS = 0.25;
+
+// LOCATIONS
+export const ssao_pass_l = {
+	attribs: {
+		vertex_pos: 'a_vert',
+	},
+	uniforms: {
+		pos_tex: 'u_pos_tex',
+		norm_tex: 'u_norm_tex',
+		noise_tex: 'u_noise_tex',
+		samples_a: 'u_samples',
+		proj_m: 'u_proj',
+	}
+}
+
+// VERTEX SHADER
 export const ssao_pass_v = `
 #version 100
 
@@ -11,9 +28,9 @@ void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
 	gl_Position = vec4(a_vert, 1.0);
 }
-
 `;
 
+// FRAGMENT SHADER (generator)
 export function gen_ssao_pass_f(viewport_width, viewport_height) {return `
 precision highp float;
 

@@ -7,12 +7,12 @@ import * as M from './gl-matrix.js';
 import { room_config } from './room-config.js';
 // Shaders
 // import { default_shader_v, default_shader_f } from './shaders/default_shader.js';
-import { deferred_pass_v, deferred_pass_f } from './shaders/deferred_pass.js';
-import { deferred_combine_v, deferred_combine_f } from './shaders/deferred_combine.js';
-import { ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from './shaders/ssao_pass.js';
-import { ssao_blur_v, gen_ssao_blur_f } from './shaders/ssao_blur.js';
-import { spotlight_pass_v, spotlight_pass_f } from './shaders/spotlight_pass.js';
-import { fxaa_pass_v, gen_fxaa_pass_f } from './shaders/fxaa_pass.js';
+import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from './shaders/deferred_pass.js';
+import { deferred_combine_l, deferred_combine_v, deferred_combine_f } from './shaders/deferred_combine.js';
+import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from './shaders/ssao_pass.js';
+import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from './shaders/ssao_blur.js';
+import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f } from './shaders/spotlight_pass.js';
+import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from './shaders/fxaa_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -187,6 +187,17 @@ function init_textures(gl) {
 	// screen write texture
 	tx_obj.screen_tex = gen_screen_color_texture(gl, gl.LINEAR);
 
+	// default white texture (for when effects are turned off)
+	{ 	const tx = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, tx);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array([1,1,1,1])); 
+		tx_obj.white = tx;
+	}
+
 
 	return tx_obj;
 }
@@ -312,90 +323,17 @@ function gen_ssao_kernel_and_noise(gl, tx_obj) {
 ====================== */
 function main_init(gl, room_list) {
 	// SHADER INIT
-	const shaders = {};
-	const deferred_pass_l = {
-		attribs: {
-			vertex_pos: 'a_vert',
-			normal_dir: 'a_norm',
-			albedo: 'a_albedo',
-			rough_metal: 'a_rough_metal',
-		},
-		uniforms: {
-			projection_m: 'u_proj',
-			mv_m: 'u_mv',
-			it_mv_m: 'u_it_mv',
-		}
-	}
-	shaders.deferred_pass = init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l);
-	const deferred_combine_l = {
-		attribs: {
-			vertex_pos: 'a_vert',
-		},
-		uniforms: {
-			view_m: 'u_view',
-			pos_tex: 'u_pos_tex',
-			norm_tex: 'u_norm_tex',
-			color_tex: 'u_color_tex',
-			ssao_tex: 'u_ssao_tex',
-			light_tex: 'u_light_tex',
-		}
-	}
-	shaders.deferred_combine = init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l);
-	const ssao_pass_l = {
-		attribs: {
-			vertex_pos: 'a_vert',
-		},
-		uniforms: {
-			pos_tex: 'u_pos_tex',
-			norm_tex: 'u_norm_tex',
-			noise_tex: 'u_noise_tex',
-			samples_a: 'u_samples',
-			proj_m: 'u_proj',
-		}
-	}
-	shaders.ssao_pass = init_shader_program(gl, ssao_pass_v, 
-		gen_ssao_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight),
-		ssao_pass_l);
-	const ssao_blur_l = {
-		attribs: {
-			vertex_pos: 'a_vert',
-		},
-		uniforms: {
-			ssao_tex: 'u_ssao_tex',
-		}
-	}
-	shaders.ssao_blur = init_shader_program(gl, ssao_blur_v, 
-		gen_ssao_blur_f(gl.canvas.clientWidth, gl.canvas.clientHeight),
-		ssao_blur_l);
-	const spotlight_pass_l = {
-		attribs: {
-			vertex_pos: 'a_vert',
-		},
-		uniforms: {
-			pos_tex: 'u_pos_tex',
-			norm_tex: 'u_norm_tex',
-			albedo_tex: 'u_albedo_tex',
-			rough_metal_tex: 'u_rough_metal_tex',
-			light_pos: 'u_light_pos',
-			light_dir: 'u_light_dir',
-			light_color: 'u_light_color',
-			light_i_angle: 'u_light_i_angle',
-			light_o_angle: 'u_light_o_angle',
-			light_falloff: 'u_light_falloff',
-		}
-	}
-	shaders.spotlight_pass = init_shader_program(gl, spotlight_pass_v, spotlight_pass_f, spotlight_pass_l);
-	const fxaa_pass_l = {
-		attribs: {
-			vertex_pos: 'a_vert',
-		},
-		uniforms: {
-			screen_tex: 'u_screen_tex',
-		}
-	}
-	shaders.fxaa_pass = init_shader_program(gl, fxaa_pass_v, 
-		gen_fxaa_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight),
-		fxaa_pass_l);
+	const shaders = {
+		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
+		deferred_combine: 	init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l),
+		ssao_pass: 			init_shader_program(gl, ssao_pass_v, 
+								gen_ssao_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight), ssao_pass_l),
+		ssao_blur: 			init_shader_program(gl, ssao_blur_v, 
+								gen_ssao_blur_f(gl.canvas.clientWidth, gl.canvas.clientHeight), ssao_blur_l),
+		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, spotlight_pass_f, spotlight_pass_l),
+		fxaa_pass: 			init_shader_program(gl, fxaa_pass_v, 
+								gen_fxaa_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight), fxaa_pass_l),
+	};
 
 	// BUFFER INIT
 	const buffer_data = init_buffers(gl, room_list);
@@ -409,15 +347,27 @@ function main_init(gl, room_list) {
   	const tx = init_textures(gl);
 
   	// FRAMEBUFFER INIT
-  	const fb_obj = {};
-  	fb_obj.deferred = init_deferred_framebuffer(gl, tx);
-  	fb_obj.ssao_pass = init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass);
-  	fb_obj.ssao_blur = init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur);
-  	fb_obj.light_val = init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.light_val);
-  	fb_obj.deferred_combine = init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.screen_tex);
+  	const fb_obj = {
+		deferred: 			init_deferred_framebuffer(gl, tx),
+		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
+		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
+		light_val: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.light_val),
+		deferred_combine: 	init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.screen_tex),
+	};
 
   	// SSAO DATA INIT
   	const sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
+
+  	// DEFAULT SETTINGS
+  	const settings_obj = {
+  		ssao: {
+  			enabled: true,
+  		},
+  		fxaa: {
+  			enabled: true,
+  			quality: 'DEFAULT_QUALITY',
+  		},
+  	};
 
 	return {
 		shaders: shaders,
@@ -427,6 +377,7 @@ function main_init(gl, room_list) {
 		tx: tx,
 		fb: fb_obj,
 		ssao_kernel: sample_kernel,
+		settings: settings_obj,
 	}
 }
 
@@ -540,9 +491,9 @@ function main() {
 
 
   	/* TEMP DEBUG SETTING */
-  	window.webgl = gl;
-  	window.glMatrix = M;
-  	window.program_data = program_data;
+  	window.gl = gl;
+  	window.M = M;
+  	window.pd = program_data;
 
   	// RENDERING (FRAME TICK)
   	gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));

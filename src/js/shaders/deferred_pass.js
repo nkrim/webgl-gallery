@@ -1,4 +1,18 @@
+export const deferred_pass_l = {
+	attribs: {
+		vertex_pos: 'a_vert',
+		normal_dir: 'a_norm',
+		albedo: 'a_albedo',
+		rough_metal: 'a_rough_metal',
+	},
+	uniforms: {
+		projection_m: 'u_proj',
+		mv_m: 'u_mv',
+		it_mv_m: 'u_it_mv',
+	}
+}
 export const deferred_pass_v = `
+#version 100
 
 attribute vec3 a_vert;
 attribute vec3 a_norm;
@@ -24,7 +38,6 @@ void main() {
 
  	gl_Position = u_proj * v_eye_pos;
 }
-
 `;
 
 export const deferred_pass_f = `

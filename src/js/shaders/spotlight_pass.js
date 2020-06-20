@@ -1,3 +1,23 @@
+// LOCATIONS
+export const spotlight_pass_l = {
+    attribs: {
+        vertex_pos: 'a_vert',
+    },
+    uniforms: {
+        pos_tex: 'u_pos_tex',
+        norm_tex: 'u_norm_tex',
+        albedo_tex: 'u_albedo_tex',
+        rough_metal_tex: 'u_rough_metal_tex',
+        light_pos: 'u_light_pos',
+        light_dir: 'u_light_dir',
+        light_color: 'u_light_color',
+        light_i_angle: 'u_light_i_angle',
+        light_o_angle: 'u_light_o_angle',
+        light_falloff: 'u_light_falloff',
+    }
+}
+
+// VERTEX SHADER
 export const spotlight_pass_v = `
 #version 100
 
@@ -9,9 +29,9 @@ void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
 	gl_Position = vec4(a_vert, 1.0);
 }
-
 `;
 
+// FRAGMENT SHADER
 export const spotlight_pass_f = `
 precision highp float;
 

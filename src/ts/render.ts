@@ -289,9 +289,9 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 
 /* QUAD DRAWN GBUFFER COMBINE PASS
 ================================== */
-function quad_deferred_combine(gl:any, pd:any):void {
+function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
 	// set fbo
-	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.deferred_combine);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, write_to_frame ? null : pd.fb.deferred_combine);
 
 	// set program
 	const shader = pd.shaders.deferred_combine;
@@ -330,7 +330,7 @@ function quad_deferred_combine(gl:any, pd:any):void {
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[3]);
 	gl.uniform1i(shader.uniforms.color_tex, 2);
 	gl.activeTexture(gl.TEXTURE3);	// ssao texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_blur);
+	gl.bindTexture(gl.TEXTURE_2D, pd.settings.ssao.enabled ? pd.tx.ssao_blur : pd.tx.white); // NEED BACKUP FOR SSAO DISABLED
 	gl.uniform1i(shader.uniforms.ssao_tex, 3);
 	gl.activeTexture(gl.TEXTURE4);	// light texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.light_val);
@@ -387,20 +387,23 @@ function render(gl:any, pd:any):void {
 	// draw scene to gbuffer
 	gbuffer_pass(gl, pd, proj_m);
 
-	// ssao pass
-	ssao_pass(gl, pd, proj_m)
-
-	// ssao pass
-	ssao_blur(gl, pd)
+	// ssao passes
+	if(pd.settings.ssao.enabled) {
+		// ssao pass
+		ssao_pass(gl, pd, proj_m)
+		// ssao pass
+		ssao_blur(gl, pd)
+	}
 
 	// spotlight pass
 	spotlight_pass(gl, pd, pd.room_list[0].spotlights[0]);
 
 	// combine gbuffer contents on quad
-	quad_deferred_combine(gl, pd);
+	quad_deferred_combine(gl, pd, !pd.settings.fxaa.enabled);
 
 	// fxaa post-process
-	fxaa_pass(gl, pd);
+	if(pd.settings.fxaa.enabled)
+		fxaa_pass(gl, pd);
 
 }
 

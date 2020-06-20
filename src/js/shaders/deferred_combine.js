@@ -1,3 +1,16 @@
+export const deferred_combine_l = {
+	attribs: {
+		vertex_pos: 'a_vert',
+	},
+	uniforms: {
+		view_m: 'u_view',
+		pos_tex: 'u_pos_tex',
+		norm_tex: 'u_norm_tex',
+		color_tex: 'u_color_tex',
+		ssao_tex: 'u_ssao_tex',
+		light_tex: 'u_light_tex',
+	}
+}
 export const deferred_combine_v = `
 #version 100
 
@@ -15,7 +28,6 @@ void main() {
 	v_to_sun = (u_view * to_sun).xyz;
 	gl_Position = vec4(a_vert, 1.0);
 }
-
 `;
 
 export const deferred_combine_f = `

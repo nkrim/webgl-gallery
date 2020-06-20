@@ -15,24 +15,47 @@
 				text-align: center;
 			}
 			#glCanvas {
-				margin: 40px auto;
+				margin: 10px auto 0;
 			}
-			#playStop {
+			#panel {
+				display: flex;
+				flex-direction: column;
+				justify-content: flex-start;
+				align-items: center;
+			}
+			.button {
 				position: relative;
-				width: 120px;
+				min-width: 120px;
 				height: 40px;
 				border: 2px solid #fff;
 				text-align: center;
 				margin: 10px auto;
 				cursor: pointer;
+				background: #888;
+			}
+			.button.button-active {
 				background: #ccc;
 			}
-			#playStop p {
+			.button p {
 				position: absolute;
 				top: 50%;
 				left: 50%;
 				transform: translate(-50%, -50%);
 				margin: 0;
+			}
+			#settings {
+				display: flex;
+				flex-wrap: wrap;
+				justify-content: center;
+				align-items: flex-start;
+				margin: auto;
+			}
+			.settings-box {
+				display: flex;
+				flex-direction: column;
+				justify-content: flex-start;
+				align-items: center;
+				margin: 0 20px 20px;
 			}
 		</style>
 	</head>
@@ -40,8 +63,19 @@
 		<div class="canvas-container">
 			<canvas id="glCanvas" width="640" height="480"></canvas>
 		</div>
-		<div id="playStop">
-			<p>STOP</p>
+		<div id="panel">
+			<div id="playStop" class="button">
+				<p style="margin: auto;">STOP</p>
+			</div>
+			<div id="settings">
+				<div class="settings-box"><p>SSAO</p>
+					<div id="ssaoEnabled" class="button button-active" onclick="pd.settings.ssao.enabled!=pd.settings.ssao.enabled;this.classList.toggle('button-active');this.children[0].textContent=pd.settings.ssao.enabled?'ON':'OFF';"><p>ON</p></div>
+				</div>
+				<div class="settings-box"><p>FXAA</p>
+					<div id="fxaaEnabled" class="button button-active"><p>ON</p></div>
+					<div id="fxaaQuality" class="button button-active"><p>DEFAULT</p></div>
+				</div>
+			</div>
 		</div>
 		<!-- exports init -->
 		<script>var exports = {};</script>

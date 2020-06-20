@@ -348,7 +348,7 @@ function fxaa_pass(gl:any, pd:any):void {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);//pd.fb.fxaa_pass);
 
 	// use program
-	const shader = pd.shaders.fxaa_pass;
+	const shader = pd.shaders.fxaa_pass.variants[pd.shaders.fxaa_pass.index];
 	gl.useProgram(shader.prog);
 
 	// clear constants

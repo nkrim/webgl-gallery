@@ -10,15 +10,20 @@ const pitch_speed:number = 1.5;
 const yaw_speed:number = 1.5;
 
 /* KEYLIST HANDLERS */
+const key_prevent_default:Set<number> = new Set([38,40,37,39]);
 const key_set:Set<number> = new Set();
 export function init_handlers():void {
 	window.addEventListener("keydown",
 		function(e) {
+			if(key_prevent_default.has(e.keyCode))
+				e.preventDefault();
 			key_set.add(e.keyCode);
 		}
 	);
 	window.addEventListener("keyup",
 		function(e) {
+			if(key_prevent_default.has(e.keyCode))
+				e.preventDefault();
 			key_set.delete(e.keyCode);
 		}
 	);

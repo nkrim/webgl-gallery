@@ -10,18 +10,20 @@ export const FXAA_RELATIVE_THRESHOLD = '0.166';
 export const FXAA_FILTER_COEFFICIENT = '0.75';
 
 // QUALITY OPTIONS
-export const FXAA_QUALITY_SETTINGS = {
-	DEFAULT_QUALITY: {
+export const FXAA_QUALITY_SETTINGS = [
+	{
+		name: 'DEFAULT',
 		edge_step_count: '10',
 		edge_steps: ['1.0', '1.5', '2.0', '2.0', '2.0', '2.0', '2.0', '2.0', '2.0', '4.0'],
 		edge_guess: '8.0',
 	},
-	LOW_QUALITY: {
+	{
+		name: 'LOW',
 		edge_step_count: '4',
 		edge_steps: ['1.0', '1.5', '2.0', '2.0'],
 		edge_guess: '4.0',
 	},
-};
+];
 
 // LOCATIONS
 export const fxaa_pass_l = {

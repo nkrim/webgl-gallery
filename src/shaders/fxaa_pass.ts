@@ -5,12 +5,12 @@
 */
 
 // TUNING CONSTANTS
-export const FXAA_CONTRAST_THRESHOLD = '0.0833';
-export const FXAA_RELATIVE_THRESHOLD = '0.166';
-export const FXAA_FILTER_COEFFICIENT = '0.75';
+export const FXAA_CONTRAST_THRESHOLD:string = '0.0833';
+export const FXAA_RELATIVE_THRESHOLD:string = '0.166';
+export const FXAA_FILTER_COEFFICIENT:string = '0.75';
 
 // QUALITY OPTIONS
-export const FXAA_QUALITY_SETTINGS = [
+export const FXAA_QUALITY_SETTINGS:Array<any> = [
 	{
 		name: 'DEFAULT',
 		edge_step_count: '10',
@@ -26,7 +26,7 @@ export const FXAA_QUALITY_SETTINGS = [
 ];
 
 // LOCATIONS
-export const fxaa_pass_l = {
+export const fxaa_pass_l:any = {
 	attribs: {
 		vertex_pos: 'a_vert',
 	},
@@ -36,7 +36,7 @@ export const fxaa_pass_l = {
 }
 
 // VERTEX SHADER
-export const fxaa_pass_v = `
+export const fxaa_pass_v:string = `
 #version 100
 
 attribute vec3 a_vert;
@@ -50,7 +50,8 @@ void main() {
 `;
 
 // FRAGMENT SHADER (generator)
-export function gen_fxaa_pass_f(viewport_width, viewport_height, quality=FXAA_QUALITY_SETTINGS.DEFAULT_QUALITY) {
+export function gen_fxaa_pass_f(viewport_width:number, viewport_height:number, quality:any=FXAA_QUALITY_SETTINGS[0])
+:string {
 	if(		quality.edge_step_count === undefined || 
 			quality.edge_steps === undefined || 
 			quality.edge_guess === undefined) {

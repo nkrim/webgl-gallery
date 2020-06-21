@@ -64,22 +64,22 @@
 			<canvas id="glCanvas" width="640" height="480"></canvas>
 		</div>
 		<div id="panel">
-			<div id="playStop" class="button">
+			<div id="playStop" class="button button-active">
 				<p style="margin: auto;">STOP</p>
 			</div>
 			<div id="settings">
 				<div class="settings-box"><p>SSAO</p>
-					<div id="ssaoEnabled" class="button button-active" onclick="pd.settings.ssao.enabled!=pd.settings.ssao.enabled;this.classList.toggle('button-active');this.children[0].textContent=pd.settings.ssao.enabled?'ON':'OFF';"><p>ON</p></div>
+					<div id="ssaoEnabled" class="button button-active"><p></p></div>
 				</div>
 				<div class="settings-box"><p>FXAA</p>
-					<div id="fxaaEnabled" class="button button-active"><p>ON</p></div>
-					<div id="fxaaQuality" class="button button-active"><p>DEFAULT</p></div>
+					<div id="fxaaEnabled" class="button button-active"><p></p></div>
+					<div id="fxaaQuality" class="button button-active"><p></p></div>
 				</div>
 			</div>
 		</div>
 		<!-- exports init -->
 		<script>var exports = {};</script>
 		<!-- script bundle -->
-		<script src="/js/bundle.js"></script>
+		<script src="./js/bundle.js"></script>
 	</body>
 </html>

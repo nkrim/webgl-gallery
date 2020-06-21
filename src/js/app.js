@@ -3,16 +3,17 @@ import * as ROOM from '../ts/room.ts';
 import { Camera } from '../ts/camera.ts';
 import * as INPUT from '../ts/input.ts';
 import { lerp, interlace_n } from '../ts/utils.ts';
+import * as S from '../ts/settings.ts';
 import * as M from './gl-matrix.js';
 import { room_config } from './room-config.js';
 // Shaders
 // import { default_shader_v, default_shader_f } from './shaders/default_shader.js';
-import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from './shaders/deferred_pass.js';
-import { deferred_combine_l, deferred_combine_v, deferred_combine_f } from './shaders/deferred_combine.js';
-import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from './shaders/ssao_pass.js';
-import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from './shaders/ssao_blur.js';
-import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f } from './shaders/spotlight_pass.js';
-import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from './shaders/fxaa_pass.js';
+import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from '../shaders/deferred_pass.js';
+import { deferred_combine_l, deferred_combine_v, deferred_combine_f } from '../shaders/deferred_combine.js';
+import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../shaders/ssao_pass.js';
+import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
+import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f } from '../shaders/spotlight_pass.js';
+import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -322,16 +323,8 @@ function gen_ssao_kernel_and_noise(gl, tx_obj) {
 /* MAIN INITIALIZATION
 ====================== */
 function main_init(gl, room_list) {
-	// DEFAULT SETTINGS
-  	let settings_obj = {
-  		ssao: {
-  			enabled: true,
-  		},
-  		fxaa: {
-  			enabled: true,
-  			quality: FXAA_QUALITY_SETTINGS.DEFAULT,
-  		},
-  	};
+	// SETTINGS INIT
+	let settings_obj = Object.create(S.DEFAULT_SETTINGS);
 
 	// SHADER INIT
 	let shaders = {
@@ -342,9 +335,7 @@ function main_init(gl, room_list) {
 		ssao_blur: 			init_shader_program(gl, ssao_blur_v, 
 								gen_ssao_blur_f(gl.canvas.clientWidth, gl.canvas.clientHeight), ssao_blur_l),
 		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, spotlight_pass_f, spotlight_pass_l),
-		fxaa_pass: 	{
-			index: 0,
-			variants: [
+		fxaa_pass_variants: [
 				init_shader_program(gl, fxaa_pass_v, 
 					gen_fxaa_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight, FXAA_QUALITY_SETTINGS[0]), 
 					fxaa_pass_l),
@@ -352,7 +343,6 @@ function main_init(gl, room_list) {
 					gen_fxaa_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight, FXAA_QUALITY_SETTINGS[1]), 
 					fxaa_pass_l),
 			]
-		},
 	};
 
 	// BUFFER INIT
@@ -521,6 +511,9 @@ function main() {
   	// RENDERING (FRAME TICK)
   	gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
 
+  	// SETTINGS BUTTONS INIT
+  	S.init_settings_handlers(program_data);
+
   	// EVENT HANDLERS (PLAY AND STOP BUTTONS)
   	{
 	  	document.querySelector('#playStop').onclick = function() {
@@ -534,28 +527,6 @@ function main() {
 				this.children[0].textContent = "PLAY";
 				this.classList.remove('button-active');
 			}
-		}
-		// settings buttons
-		document.querySelector('#ssaoEnabled').onclick = function() {
-			pd.settings.ssao.enabled = !pd.settings.ssao.enabled;
-			this.classList.toggle('button-active');
-			this.children[0].textContent = pd.settings.ssao.enabled?'ON':'OFF';
-		}
-		document.querySelector('#fxaaEnabled').onclick = function() {
-			pd.settings.fxaa.enabled = !pd.settings.fxaa.enabled;
-			this.classList.toggle('button-active');
-			this.children[0].textContent = pd.settings.fxaa.enabled?'ON':'OFF';
-		}
-		let fxaa_quality_index = 0;
-		document.querySelector('#fxaaQuality').onclick = function() {
-			fxaa_quality_index = (++fxaa_quality_index)%FXAA_QUALITY_SETTINGS.length
-			pd.settings.fxaa.quality = FXAA_QUALITY_SETTINGS[fxaa_quality_index];
-			pd.shaders.fxaa_pass.index = fxaa_quality_index;
-			this.children[0].textContent = pd.settings.fxaa.quality.name;
-			if(pd.settings.fxaa.quality.name === 'DEFAULT')
-				this.classList.add('button-active');
-			else
-				this.classList.remove('button-active');
 		}
 	}
 }

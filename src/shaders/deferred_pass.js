@@ -9,6 +9,8 @@ export const deferred_pass_l = {
 		projection_m: 'u_proj',
 		mv_m: 'u_mv',
 		it_mv_m: 'u_it_mv',
+		ambient_c: 'u_ambient_c',
+		ambient_i: 'u_ambient_i',
 	}
 }
 export const deferred_pass_v = `
@@ -54,6 +56,9 @@ varying vec3 v_normal;
 varying vec3 v_albedo;
 varying vec2 v_rough_metal;
 
+uniform vec3 u_ambient_c;
+uniform float u_ambient_i;
+
 void main() {
 	float z = (2.0 * near) / (far + near - (gl_FragCoord.z) * (far - near));
 	gl_FragData[0] = vec4(vec3(z), 1.0);
@@ -61,6 +66,8 @@ void main() {
   	gl_FragData[2] = vec4(normalize(v_normal), 1.0);
   	gl_FragData[3] = vec4(v_albedo, 1.0);
   	gl_FragData[4] = vec4(v_rough_metal, 0.0, 1.0);
+  	gl_FragData[4] = vec4(v_rough_metal, 0.0, 1.0);
+  	gl_FragData[5] = vec4(u_ambient_i*u_ambient_c, 1.0);
 }
 
 `;

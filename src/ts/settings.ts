@@ -5,7 +5,7 @@ export const DEFAULT_SETTINGS:any = {
 		enabled: false,
 	},
 	fxaa: {
-		enabled: true,
+		enabled: false,
 		quality_index: 0,
 	},
 }

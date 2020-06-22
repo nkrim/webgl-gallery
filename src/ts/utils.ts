@@ -1,4 +1,8 @@
+import {vec3} from 'gl-matrix';
+
 export const EPSILON:number = 0.00001;
+export const DEG_TO_RAD:number = Math.PI/180;
+export const RAD_TO_DEG:number = 180/Math.PI; 
 
 export function interlace_2(a:Array<number>, b:Array<number>, a_stride:number, b_stride:number, count:number) {
 	const interlaced = [];
@@ -57,5 +61,12 @@ export function lerp(a:number, b:number, t:number):number {
 	return a + t*(b - a);
 }
 
-export const DEG_TO_RAD:number = Math.PI/180;
-export const RAD_TO_DEG:number = 180/Math.PI; 
+export function gamma_to_linear(x:number):number {
+	return Math.pow(x, 2.2);
+}
+export function vec3_gamma_to_linear(target:vec3, source?:vec3):void {
+	console.log(vec3);
+	if(source == undefined)
+		source = target;
+	vec3.set(target, gamma_to_linear(source[0]), gamma_to_linear(source[1]), gamma_to_linear(source[2]));
+}

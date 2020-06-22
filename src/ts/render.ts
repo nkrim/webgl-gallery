@@ -21,6 +21,13 @@ function get_projection(gl:any, fov:number):mat4 {
 	return projection_m;
 }
 
+/* SHADOW MAPPING PASS
+====================== */
+function shadowmap_pass(gl:any, pd:any):void {
+	// Bind to deferred fb
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.deferred);
+}
+
 /* GBUFFER PASS FOR DEFERRED SHADING
 ==================================== */
 function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
@@ -130,6 +137,10 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 			gl.enableVertexAttribArray(attribute);
 		}
 
+		// UNIFORMS SET
+		gl.uniform3fv(shader.uniforms.ambient_c, room.ambient_color);
+		gl.uniform1f(shader.uniforms.ambient_i, room.ambient_intensity);
+
 		// DRAW
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.room.indices);
 		{
@@ -146,6 +157,9 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.ssao_pass);
+
+	// set viewport
+	gl.viewport(0, 0, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
 
 	// use program
 	const shader = pd.shaders.ssao_pass;
@@ -190,6 +204,9 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 	// draw
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+	// reset viewport
+	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
 }
 
 /* SSAO BLUR
@@ -197,6 +214,9 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 function ssao_blur(gl:any, pd:any):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.ssao_blur);
+
+	// set viewport
+	gl.viewport(0, 0, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
 
 	// use program
 	const shader = pd.shaders.ssao_blur;
@@ -226,6 +246,9 @@ function ssao_blur(gl:any, pd:any):void {
 	// draw
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+	// reset viewport
+	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
 }
 
 /* SPOTLIGHT INT PASS
@@ -278,6 +301,7 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	M.vec4.transformMat4(v4, v4, view_m);
 	gl.uniform3f(shader.uniforms.light_dir, v4[0], v4[1], v4[2]);
 	gl.uniform3fv(shader.uniforms.light_color, light.color);
+	gl.uniform1f(shader.uniforms.light_int, light.intensity);
 	gl.uniform1f(shader.uniforms.light_i_angle, light.i_angle);
 	gl.uniform1f(shader.uniforms.light_o_angle, light.o_angle);
 	gl.uniform1f(shader.uniforms.light_falloff, light.falloff);
@@ -329,12 +353,15 @@ function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
 	gl.activeTexture(gl.TEXTURE2);	// color buffer
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[3]);
 	gl.uniform1i(shader.uniforms.color_tex, 2);
-	gl.activeTexture(gl.TEXTURE3);	// ssao texture
+	gl.activeTexture(gl.TEXTURE3);	// ambient buffer
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[5]);
+	gl.uniform1i(shader.uniforms.ambient_tex, 3);
+	gl.activeTexture(gl.TEXTURE4);	// ssao texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.settings.ssao.enabled ? pd.tx.ssao_blur : pd.tx.white); // NEED BACKUP FOR SSAO DISABLED
-	gl.uniform1i(shader.uniforms.ssao_tex, 3);
-	gl.activeTexture(gl.TEXTURE4);	// light texture
+	gl.uniform1i(shader.uniforms.ssao_tex, 4);
+	gl.activeTexture(gl.TEXTURE5);	// light texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.light_val);
-	gl.uniform1i(shader.uniforms.light_tex, 4);
+	gl.uniform1i(shader.uniforms.light_tex, 5);
 
 	// draw
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)

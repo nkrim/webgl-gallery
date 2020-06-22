@@ -14,6 +14,7 @@ import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../
 import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
 import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
+import { shadowmap_pass_l, shadowmap_pass_v } from '../shaders/shadowmap_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -38,12 +39,15 @@ function load_shader(gl, type, source) {
 
 function init_shader_program(gl, vs_source, fs_source, loc_lookup) {
 	const vertex_shader = load_shader(gl, gl.VERTEX_SHADER, vs_source);
-	const fragment_shader = load_shader(gl, gl.FRAGMENT_SHADER, fs_source);
+	const fragment_shader = null;
+	if(fs_source !== null)
+		fragment_shader = load_shader(gl, gl.FRAGMENT_SHADER, fs_source);
 
 	// Create the shader program
 	const shader_program = gl.createProgram();
 	gl.attachShader(shader_program, vertex_shader);
-	gl.attachShader(shader_program, fragment_shader);
+	if(fragment_shader !== null)
+		gl.attachShader(shader_program, fragment_shader);
 	gl.linkProgram(shader_program);
 
 	// If creating the shader program failed, alert
@@ -120,7 +124,11 @@ function init_buffers(gl, room_list) {
 	};
 }
 
-function gen_screen_color_texture(gl, filter_function) {
+function gen_screen_color_texture(gl, filter_function, dimensions) {
+	if(dimensions == undefined) {
+		dimensions = M.vec2.create();
+		M.vec2.set(dimensions, gl.canvas.clientWidth, gl.canvas.clientHeight);
+	}
 	const tx = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tx);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_function);
@@ -129,8 +137,8 @@ function gen_screen_color_texture(gl, filter_function) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	const level = 0;
 	const internalFormat = gl.RGBA;
-	const width = gl.canvas.clientWidth;
-	const height = gl.canvas.clientHeight;
+	const width = dimensions[0];
+	const height = dimensions[1];
 	const border = 0;
 	const srcFormat = gl.RGBA;
 	const srcType = gl.FLOAT;
@@ -139,7 +147,11 @@ function gen_screen_color_texture(gl, filter_function) {
             width, height, border, srcFormat, srcType, pixel);
 	return tx;
 }
-function gen_screen_depth_texture(gl, filter_function) {
+function gen_screen_depth_texture(gl, filter_function, dimensions) {
+	if(dimensions == undefined) {
+		dimensions = M.vec2.create();
+		M.vec2.set(dimensions, gl.canvas.clientWidth, gl.canvas.clientHeight);
+	}
 	const tx = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tx);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_function);
@@ -148,8 +160,8 @@ function gen_screen_depth_texture(gl, filter_function) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	const level = 0;
 	const internalFormat = gl.DEPTH_COMPONENT;
-	const width = gl.canvas.clientWidth;
-	const height = gl.canvas.clientHeight;
+	const width = dimensions[0];
+	const height = dimensions[1];
 	const border = 0;
 	const srcFormat = gl.DEPTH_COMPONENT;
 	const srcType = gl.UNSIGNED_SHORT;
@@ -166,10 +178,12 @@ function gen_screen_depth_texture(gl, filter_function) {
 	2: gbuffer normal
 	3: gbuffer albedo
 	4: gbuffer roughness/metallic
+	5: gbuffer ambient light
 */
 function init_textures(gl) {
 	// init tx_obj
 	const tx_obj = {};
+	const dims = M.vec2.create();
 
 	// deferred depth attachment
 	tx_obj.depth = gen_screen_depth_texture(gl, gl.NEAREST);
@@ -179,8 +193,9 @@ function init_textures(gl) {
 		tx_obj.bufs.push(gen_screen_color_texture(gl, gl.LINEAR));
 	}
 	// ssao texture
-	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST);
-	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.NEAREST);
+	M.vec2.set(dims, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
+	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
+	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
 	tx_obj.shadow_atlas = gen_screen_depth_texture(gl, gl.NEAREST);
 	// light accumulation buffer
@@ -215,6 +230,7 @@ function init_deferred_framebuffer(gl, tx) {
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT2_WEBGL, gl.TEXTURE_2D, tx.bufs[2], 0);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT3_WEBGL, gl.TEXTURE_2D, tx.bufs[3], 0);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT4_WEBGL, gl.TEXTURE_2D, tx.bufs[4], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT5_WEBGL, gl.TEXTURE_2D, tx.bufs[5], 0);
 
 	// DRAW BUFFERS
 	gl.ext.db.drawBuffersWEBGL([
@@ -223,6 +239,7 @@ function init_deferred_framebuffer(gl, tx) {
 		gl.ext.db.COLOR_ATTACHMENT2_WEBGL,
 		gl.ext.db.COLOR_ATTACHMENT3_WEBGL,
 		gl.ext.db.COLOR_ATTACHMENT4_WEBGL,
+		gl.ext.db.COLOR_ATTACHMENT5_WEBGL,
 	]);
 
 	// unbind
@@ -236,18 +253,6 @@ function init_standard_write_framebuffer(gl, attachment, texture) {
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, attachment, gl.TEXTURE_2D, texture, 0);
-
-	// unbind
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-	return fb;
-}
-
-function init_shadow_mapping_framebuffer(gl, shadow_atlas_texture) {
-	const fb = gl.createFramebuffer();
-	// Bind GBuffer textures
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadow_atlas_texture, 0);
 
 	// unbind
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -331,9 +336,9 @@ function main_init(gl, room_list) {
 		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
 		deferred_combine: 	init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l),
 		ssao_pass: 			init_shader_program(gl, ssao_pass_v, 
-								gen_ssao_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight), ssao_pass_l),
+								gen_ssao_pass_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_pass_l),
 		ssao_blur: 			init_shader_program(gl, ssao_blur_v, 
-								gen_ssao_blur_f(gl.canvas.clientWidth, gl.canvas.clientHeight), ssao_blur_l),
+								gen_ssao_blur_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_blur_l),
 		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, spotlight_pass_f, spotlight_pass_l),
 		fxaa_pass_variants: [
 				init_shader_program(gl, fxaa_pass_v, 
@@ -363,6 +368,7 @@ function main_init(gl, room_list) {
 		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
 		light_val: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.light_val),
 		deferred_combine: 	init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.screen_tex),
+		shadowmap_pass: 	init_shadow_mapping_framebuffer(gl, gl.DEPTH_ATTACHMENT, tx.shadow_atlas),
 	};
 
   	// SSAO DATA INIT
@@ -492,7 +498,7 @@ function main() {
  			new ROOM.Room(
  				r.wall_paths, r.wall_height, r.floor_indices, r.room_scale,
  				r.wall_albedo, r.wall_rough_metal, r.floor_albedo, r.floor_rough_metal, r.ceil_albedo, r.ceil_rough_metal,
- 				r.spotlights)
+ 				r.ambient_color, r.ambient_intensity, r.spotlights)
  		);
  	}
   	console.log(room_list);

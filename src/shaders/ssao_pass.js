@@ -1,6 +1,6 @@
 // TUNING CONSTANTS
 export const SSAO_KERNEL_SIZE = 32;
-export const SSAO_SAMPLE_RADIUS = 0.25;
+export const SSAO_SAMPLE_RADIUS = 0.5;
 
 // LOCATIONS
 export const ssao_pass_l = {
@@ -88,7 +88,7 @@ void main() {
 
 		// compare depth with offset-sample expected depth, add result to occlusion
 		float range_bias = smoothstep(0.0, 1.0, sample_radius / abs(pos.z - sample_depth));
-		occlusion += (sample_depth >= sample.z ? 1.0 : 0.0) * range_bias;  
+		occlusion += (sample_depth >= sample.z + sample_depth_bias ? 1.0 : 0.0) * range_bias;  
 	}
 
 	occlusion = 1.0 - occlusion/float(kernel_size);

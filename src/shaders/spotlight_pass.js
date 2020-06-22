@@ -11,6 +11,7 @@ export const spotlight_pass_l = {
         light_pos: 'u_light_pos',
         light_dir: 'u_light_dir',
         light_color: 'u_light_color',
+        light_int:     'u_light_int',
         light_i_angle: 'u_light_i_angle',
         light_o_angle: 'u_light_o_angle',
         light_falloff: 'u_light_falloff',
@@ -48,6 +49,7 @@ uniform sampler2D u_rough_metal_tex;
 uniform vec3 u_light_pos;
 uniform vec3 u_light_dir;
 uniform vec3 u_light_color;
+uniform float u_light_int;
 uniform float u_light_i_angle;
 uniform float u_light_o_angle;
 uniform float u_light_falloff;
@@ -105,7 +107,7 @@ void main() {
     if(dot(N, -l_to_p) < 0.0 || cos_angle < u_light_o_angle-0.0001) {
         discard;
     }
-	float I = pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
+	float I = u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
     gl_FragColor = vec4(I*A*u_light_color, 1.0);
     return;
 

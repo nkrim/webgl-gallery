@@ -65,7 +65,6 @@ export function gamma_to_linear(x:number):number {
 	return Math.pow(x, 2.2);
 }
 export function vec3_gamma_to_linear(target:vec3, source?:vec3):void {
-	console.log(vec3);
 	if(source == undefined)
 		source = target;
 	vec3.set(target, gamma_to_linear(source[0]), gamma_to_linear(source[1]), gamma_to_linear(source[2]));

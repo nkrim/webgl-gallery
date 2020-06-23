@@ -5,7 +5,7 @@ import * as INPUT from '../ts/input.ts';
 import { lerp, interlace_n } from '../ts/utils.ts';
 import * as S from '../ts/settings.ts';
 import * as M from './gl-matrix.js';
-import { room_config } from './room-config.js';
+import { load_room, room_config } from './room-config.js';
 // Shaders
 // import { default_shader_v, default_shader_f } from './shaders/default_shader.js';
 import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from '../shaders/deferred_pass.js';
@@ -14,7 +14,7 @@ import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../
 import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
 import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
-import { shadowmap_pass_l, shadowmap_pass_v } from '../shaders/shadowmap_pass.js';
+import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders/shadowmap_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -39,15 +39,12 @@ function load_shader(gl, type, source) {
 
 function init_shader_program(gl, vs_source, fs_source, loc_lookup) {
 	const vertex_shader = load_shader(gl, gl.VERTEX_SHADER, vs_source);
-	const fragment_shader = null;
-	if(fs_source !== null)
-		fragment_shader = load_shader(gl, gl.FRAGMENT_SHADER, fs_source);
+	const fragment_shader = load_shader(gl, gl.FRAGMENT_SHADER, fs_source);
 
 	// Create the shader program
 	const shader_program = gl.createProgram();
 	gl.attachShader(shader_program, vertex_shader);
-	if(fragment_shader !== null)
-		gl.attachShader(shader_program, fragment_shader);
+	gl.attachShader(shader_program, fragment_shader);
 	gl.linkProgram(shader_program);
 
 	// If creating the shader program failed, alert
@@ -260,6 +257,19 @@ function init_standard_write_framebuffer(gl, attachment, texture) {
 	return fb;
 }
 
+function init_shadowmapping_framebuffer(gl, shadow_map, color_attachment) {
+	const fb = gl.createFramebuffer();
+	// Bind GBuffer textures
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadow_map, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, color_attachment, 0);
+
+	// unbind
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	return fb;
+}
+
 /* SSAO Kernel and noise generation
 ----------------------------------- */
 function gen_ssao_kernel_and_noise(gl, tx_obj) {
@@ -333,6 +343,7 @@ function main_init(gl, room_list) {
 
 	// SHADER INIT
 	let shaders = {
+		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
 		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
 		deferred_combine: 	init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l),
 		ssao_pass: 			init_shader_program(gl, ssao_pass_v, 
@@ -347,7 +358,7 @@ function main_init(gl, room_list) {
 				init_shader_program(gl, fxaa_pass_v, 
 					gen_fxaa_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight, FXAA_QUALITY_SETTINGS[1]), 
 					fxaa_pass_l),
-			]
+			],
 	};
 
 	// BUFFER INIT
@@ -363,12 +374,12 @@ function main_init(gl, room_list) {
 
   	// FRAMEBUFFER INIT
   	const fb_obj = {
+  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas, tx.screen_tex/*temp*/),
 		deferred: 			init_deferred_framebuffer(gl, tx),
 		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
 		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
 		light_val: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.light_val),
 		deferred_combine: 	init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.screen_tex),
-		shadowmap_pass: 	init_shadow_mapping_framebuffer(gl, gl.DEPTH_ATTACHMENT, tx.shadow_atlas),
 	};
 
   	// SSAO DATA INIT
@@ -494,12 +505,7 @@ function main() {
   	let room_list = [];
  	for(let i=0; i<room_config.length; i++) {
  		const r = room_config[0];
- 		room_list.push(
- 			new ROOM.Room(
- 				r.wall_paths, r.wall_height, r.floor_indices, r.room_scale,
- 				r.wall_albedo, r.wall_rough_metal, r.floor_albedo, r.floor_rough_metal, r.ceil_albedo, r.ceil_rough_metal,
- 				r.ambient_color, r.ambient_intensity, r.spotlights)
- 		);
+ 		room_list.push(load_room(r));
  	}
   	console.log(room_list);
 

@@ -1,4 +1,13 @@
+import { Room } from '../ts/room.ts';
+import { Camera } from '../ts/camera.ts';
 import { Spotlight } from '../ts/spotlight.ts';
+
+export function load_room(r) {
+	return new Room(
+		r.wall_paths, r.wall_height, r.floor_indices, r.room_scale,
+		r.wall_albedo, r.wall_rough_metal, r.floor_albedo, r.floor_rough_metal, r.ceil_albedo, r.ceil_rough_metal,
+		r.ambient_color, r.ambient_intensity, r.spotlights);
+}
 
 export const room_config = [
 	{
@@ -23,7 +32,7 @@ export const room_config = [
 		],
 		ambient_color: [1.0,1.0,1.0], ambient_intensity: 0.1,
 		spotlights: [
-			new Spotlight([3, 4, 1.75], [-1, -0.25, -1], [1.0,0.95,0.9], 1.5, 25, 45, 1),
+			new Spotlight(new Camera([3, 4, 1.75], -0.23441, Math.PI/4), [1.0,0.95,0.9], 1.5, 25, 45, 1),
 		]
 	}
 ]

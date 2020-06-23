@@ -80,7 +80,7 @@ export class Room {
 		const xz_scale:vec3 = M.vec3.create(); M.vec3.set(xz_scale, room_scale, 1, room_scale);
 		this.spotlights = spotlights; 
 		for(let i:number=0; i<this.spotlights.length; i++) // scale spotlight.pos by room_scale
-			M.vec3.mul(this.spotlights[i].pos, this.spotlights[i].pos, xz_scale);
+			M.vec3.mul(this.spotlights[i].cam.pos, this.spotlights[i].cam.pos, xz_scale);
 
 		// Default values
 		this.buffer_offset_v = -1;

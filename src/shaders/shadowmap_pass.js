@@ -1,12 +1,15 @@
+// LOCATIONS
 export const shadowmap_pass_l = {
 	attribs: {
 		vertex_pos: 'a_vert',
 	},
 	uniforms: {
-		projection_m: 'u_proj',
+		proj_m: 'u_proj',
 		mv_m: 'u_mv',
 	}
 }
+
+// VERTEX SHADER
 export const shadowmap_pass_v = `
 #version 100
 
@@ -25,3 +28,9 @@ void main() {
  	gl_Position = u_proj * u_mv * vec4(a_vert, 1.0);
 }
 `;
+
+// FRAGMENT SHADER
+export const shadowmap_pass_f = `
+	void main() { gl_FragColor = vec4(1.0,1.0,1.0,1.0); }
+`
+

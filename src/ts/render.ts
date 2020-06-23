@@ -24,8 +24,59 @@ function get_projection(gl:any, fov:number):mat4 {
 /* SHADOW MAPPING PASS
 ====================== */
 function shadowmap_pass(gl:any, pd:any):void {
-	// Bind to deferred fb
-	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.deferred);
+	// bind fb
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.shadowmap_pass);
+
+	// use shader
+	const shader = pd.shaders.shadowmap_pass;
+	gl.useProgram(shader.prog);
+
+	// clear constants
+	gl.clearColor(0.0, 0.0, 0.0, 1.0); 
+	gl.clearDepth(1.0);                
+	gl.enable(gl.DEPTH_TEST);         
+	gl.enable(gl.CULL_FACE);
+	gl.cullFace(gl.FRONT); // only render backfaces for shadowmapping
+	// clear
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	// SHOULD BE A LOOP IN THE FUTURE, FOR NOW 1 LIGHT
+	{	
+		const room = pd.room_list[0];
+		const light = room.spotlights[0];
+	 	
+		// Set projection uniform
+		gl.uniformMatrix4fv(shader.uniforms.proj_m, false, light.proj_m);
+
+		// Set modelview uniform
+		const mv_m:mat4 = light.cam.get_view_matrix();
+		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
+
+		// contextualize position information
+		const full_stride:number = 44; // 12+12+12+8
+		gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.room.vertices);
+		{
+			const attribute:		number = shader.attribs.vertex_pos;
+			const num_components:	number = 3;
+			const type:				number = gl.FLOAT;
+			const normalize:		boolean = false;
+			const stride:			number = full_stride;
+			const offset:			number = room.buffer_offset_v*4;
+			gl.vertexAttribPointer(attribute, num_components, type, normalize, stride, offset);
+			gl.enableVertexAttribArray(attribute);
+		}
+
+		// DRAW
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.room.indices);
+		{
+			const element_count :number = room.mesh_count_i;
+			const type			:number = gl.UNSIGNED_SHORT;
+			const offset 		:number = light.buffer_offset_i;
+			gl.drawElements(gl.TRIANGLES, element_count, type, offset);
+		}
+	}
+
+
 }
 
 /* GBUFFER PASS FOR DEFERRED SHADING
@@ -50,10 +101,7 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
 	// Set projection uniform
-	gl.uniformMatrix4fv(
-		shader.uniforms.projection_m,
-		false,
-		proj_m);
+	gl.uniformMatrix4fv(shader.uniforms.proj_m, false, proj_m);
 
 	// View matrix init
 	const view_m:mat4 = pd.cam.get_view_matrix();
@@ -78,17 +126,11 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 		M.mat4.transpose(it_mv_m, it_mv_m);
 
 		// Set modelview uniforms
-		gl.uniformMatrix4fv(
-			shader.uniforms.mv_m,
-			false,
-			mv_m);
-		gl.uniformMatrix4fv(
-			shader.uniforms.it_mv_m,
-			false,
-			it_mv_m);
+		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
+		gl.uniformMatrix4fv( shader.uniforms.it_mv_m, false, it_mv_m);
 
 		// CONTEXTUALIZE POSITION INFORMATION
-		const full_stride = 44; // 12+12+12+8
+		const full_stride:number = 44; // 12+12+12+8
 		gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.room.vertices);
 		{
 			const attribute:		number = shader.attribs.vertex_pos;
@@ -290,14 +332,28 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.activeTexture(gl.TEXTURE3);	// rough/metal buffer
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[4]);
 	gl.uniform1i(shader.uniforms.rough_metal_tex, 3);
+	gl.activeTexture(gl.TEXTURE4);	// shadow atlas texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas);
+	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 4);
 
-	// uniform set
+	// matrix uniform set
 	const view_m:mat4 = pd.cam.get_view_matrix();
+	const inv_view_m:mat4 = M.mat4.create();
+	M.mat4.invert(inv_view_m, view_m);
+	const c_view_to_l_screen:mat4 = M.mat4.create();
+	M.mat4.mul(c_view_to_l_screen, light.cam.get_view_matrix(), inv_view_m);
+	M.mat4.mul(c_view_to_l_screen, light.proj_m, c_view_to_l_screen);
+	gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_screen, false, c_view_to_l_screen);
+
+
+
+	// light uniform set
 	const v4:vec4 = M.vec4.create();
-	M.vec4.set(v4, light.pos[0], light.pos[1], light.pos[2], 1);
+	M.vec4.set(v4, light.cam.pos[0], light.cam.pos[1], light.cam.pos[2], 1);
 	M.vec4.transformMat4(v4, v4, view_m);
 	gl.uniform3f(shader.uniforms.light_pos, v4[0], v4[1], v4[2]);
-	M.vec4.set(v4, light.dir[0], light.dir[1], light.dir[2], 0);
+	const light_dir = light.cam.get_look_dir();
+	M.vec4.set(v4, light_dir[0], light_dir[1], light_dir[2], 0);
 	M.vec4.transformMat4(v4, v4, view_m);
 	gl.uniform3f(shader.uniforms.light_dir, v4[0], v4[1], v4[2]);
 	gl.uniform3fv(shader.uniforms.light_color, light.color);
@@ -407,6 +463,9 @@ function fxaa_pass(gl:any, pd:any):void {
 /* FINAL RENDER FUNCTION
 ======================== */
 function render(gl:any, pd:any):void {
+
+	// shadowmap pass
+	shadowmap_pass(gl, pd);
 
 	// get projection matrix
 	const proj_m:mat4 = get_projection(gl, 90);

@@ -8,6 +8,10 @@ export const spotlight_pass_l = {
         norm_tex: 'u_norm_tex',
         albedo_tex: 'u_albedo_tex',
         rough_metal_tex: 'u_rough_metal_tex',
+        shadow_atlas_tex: 'u_shadow_atlas_tex',
+
+        camera_view_to_light_screen: 'u_camera_view_to_light_screen',
+
         light_pos: 'u_light_pos',
         light_dir: 'u_light_dir',
         light_color: 'u_light_color',
@@ -44,6 +48,10 @@ uniform sampler2D u_pos_tex;
 uniform sampler2D u_norm_tex;
 uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
+uniform sampler2D u_shadow_atlas_tex;
+
+// matrix uniforms
+uniform mat4 u_camera_view_to_light_screen;
 
 // light uniforms
 uniform vec3 u_light_pos;
@@ -108,8 +116,22 @@ void main() {
         discard;
     }
 	float I = u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
-    gl_FragColor = vec4(I*A*u_light_color, 1.0);
+
+    // shadow map test
+    vec4 P_from_light = u_camera_view_to_light_screen * vec4(P, 1.0);
+    P_from_light.xyz /= P_from_light.w;
+
+
+    //gl_FragColor = vec4(I*A*u_light_color, 1.0);
+    gl_FragColor = vec4(P_from_light.xyz, 1.0);
     return;
+
+
+
+
+
+
+
 
 
 

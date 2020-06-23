@@ -14,6 +14,7 @@ export class Camera {
 	_old_pitch: number;
 	_old_yaw: number;
 	_view_matrix: mat4;
+	_look_dir: vec3;
 
 	constructor(pos: vec3, pitch: number, yaw: number) {
 		this.pos = M.vec3.create();
@@ -27,6 +28,8 @@ export class Camera {
 		this._old_yaw = yaw;
 		this._view_matrix = M.mat4.create();
 		this.get_view_matrix(true);
+		this._look_dir = M.vec3.create();
+		this.get_look_dir(true);
 	}
 
 	same_old_values(): boolean {
@@ -57,5 +60,17 @@ export class Camera {
 		M.mat4.fromRotationTranslation(this._view_matrix, q, this.pos);
 		M.mat4.invert(this._view_matrix, this._view_matrix);
 		return this._view_matrix;
+	}
+
+	get_look_dir(force:boolean = false): vec3 {
+		if(!force && this.same_old_values()){
+			return this._look_dir;
+		}
+		const q:quat = M.quat.create();
+		M.quat.rotateY(q, q, this.yaw);
+		M.quat.rotateX(q, q, this.pitch);
+		M.vec3.set(this._look_dir, 0, 0, -1);
+		M.vec3.transformQuat(this._look_dir, this._look_dir, q);
+		return this._look_dir;
 	}
 }

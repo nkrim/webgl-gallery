@@ -6,7 +6,7 @@ export const deferred_pass_l = {
 		rough_metal: 'a_rough_metal',
 	},
 	uniforms: {
-		projection_m: 'u_proj',
+		proj_m: 'u_proj',
 		mv_m: 'u_mv',
 		it_mv_m: 'u_it_mv',
 		ambient_c: 'u_ambient_c',

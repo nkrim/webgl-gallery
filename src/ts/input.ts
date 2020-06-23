@@ -75,7 +75,7 @@ function v_move(y:number, cam:Camera, dt:number): void {
 }
 
 function look(p:number, y:number, cam:Camera, dt:number):void {
-	cam.pitch = clamp(cam.pitch + (p * pitch_speed/1000 * dt), -Math.PI, Math.PI);
+	cam.pitch = clamp(cam.pitch + (p * pitch_speed/1000 * dt), -Math.PI/2, Math.PI/2);
 	cam.yaw += y * yaw_speed/1000 * dt;
 	if(cam.yaw < 0)
 		cam.yaw += 2*Math.PI;

@@ -149,72 +149,74 @@ export class Room {
 				this.mesh_count_v += 4;
 				this.mesh_count_i += 6;
 			}
-
-			// FLOOR/CEIL BUILDING
-			// ----------------------------
-			const floor_offset_v:number = this.mesh_count_v;
-			const floor_offset_i:number = this.mesh_count_i;
-			// Init index map
-			const m 	:number
-				= 1 + this.floor_indices.reduce(function(a, b) {
-				    return Math.max(a, b);
-				});
-			const memo	:Array<number> = new Array(hash_2(m-1,m-1,m)).fill(-1);
-			// Re-use already initialized vec3
-			const v 	:vec3 = v_cur_l;
-			const n 	:vec3 = v_cur_u;
-			M.vec3.set(n, 0, 1, 0);
-			// Build floor
-			for(let i=0; i<this.floor_indices.length; i+=2) {
-				const path_index:number = this.floor_indices[i];
-				const vert_index:number = this.floor_indices[i+1];
-				const hashed	:number = hash_2(path_index, vert_index, m);
-				// check index map
-				let val:number;
-				if((val = memo[hashed]) >= 0) {
-					this.mesh_indices.push(val);
-					this.mesh_count_i++;
-				}
-				// otherwise, construct new vertex
-				else {
-					const vert_x:number = this.wall_paths[path_index][vert_index*2];
-					const vert_z:number = this.wall_paths[path_index][vert_index*2 + 1];
-					M.vec3.set(v, vert_x*this.room_scale, 0, vert_z*this.room_scale);
-					this.mesh_vertices.push(...v);
-					this.mesh_normals.push(...n);
-					this.mesh_albedo.push(...this.floor_albedo);
-					this.mesh_rough_metal.push(...this.floor_rough_metal);
-					this.mesh_indices.push(this.mesh_count_v);
-					// place index in memo
-					memo[hashed] = this.mesh_count_v;
-					// increment counts
-					this.mesh_count_v++;
-					this.mesh_count_i++;
-				}
-			}
-			// Build ceil
-			M.vec3.set(n, 0, -1, 0);
-			const floor_length_v:number = this.mesh_count_v - floor_offset_v;
-			const floor_length_i:number = this.mesh_count_i - floor_offset_i;
-			// reconstruct floor vertices as ceiling
-			for(let i=floor_offset_v; i<this.mesh_count_v; i++) {
-				this.mesh_vertices.push(	this.mesh_vertices[i*3], 
-											this.mesh_vertices[i*3 + 1] + this.wall_height, 
-											this.mesh_vertices[i*3 + 2]);
-				this.mesh_normals.push(...n);
-				this.mesh_albedo.push(...this.ceil_albedo);
-				this.mesh_rough_metal.push(...this.ceil_rough_metal);
-			}
-			this.mesh_count_v += floor_length_v;
-			// reconstruct floor indices as ceiling
-			for(let i=0; i<floor_length_i; i+=3) {
-				// reverse order when placing indices
-				this.mesh_indices.push(this.mesh_indices[i + floor_offset_i] + floor_length_v);
-				this.mesh_indices.push(this.mesh_indices[i+2 + floor_offset_i] + floor_length_v);
-				this.mesh_indices.push(this.mesh_indices[i+1 + floor_offset_i] + floor_length_v);
-			}
-			this.mesh_count_i += floor_length_i;
 		}
+
+		// FLOOR/CEIL BUILDING
+		// ----------------------------
+		if(this.floor_indices.length === 0)
+			return;
+		const floor_offset_v:number = this.mesh_count_v;
+		const floor_offset_i:number = this.mesh_count_i;
+		// Init index map
+		const m 	:number
+			= 1 + this.floor_indices.reduce(function(a, b) {
+			    return Math.max(a, b);
+			});
+		const memo	:Array<number> = new Array(hash_2(m-1,m-1,m)).fill(-1);
+		// Re-use already initialized vec3
+		const v 	:vec3 = M.vec3.create();
+		const n 	:vec3 = M.vec3.create();
+		M.vec3.set(n, 0, 1, 0);
+		// Build floor
+		for(let i=0; i<this.floor_indices.length; i+=2) {
+			const path_index:number = this.floor_indices[i];
+			const vert_index:number = this.floor_indices[i+1];
+			const hashed	:number = hash_2(path_index, vert_index, m);
+			// check index map
+			let val:number;
+			if((val = memo[hashed]) >= 0) {
+				this.mesh_indices.push(val);
+				this.mesh_count_i++;
+			}
+			// otherwise, construct new vertex
+			else {
+				const vert_x:number = this.wall_paths[path_index][vert_index*2];
+				const vert_z:number = this.wall_paths[path_index][vert_index*2 + 1];
+				M.vec3.set(v, vert_x*this.room_scale, 0, vert_z*this.room_scale);
+				this.mesh_vertices.push(...v);
+				this.mesh_normals.push(...n);
+				this.mesh_albedo.push(...this.floor_albedo);
+				this.mesh_rough_metal.push(...this.floor_rough_metal);
+				this.mesh_indices.push(this.mesh_count_v);
+				// place index in memo
+				memo[hashed] = this.mesh_count_v;
+				// increment counts
+				this.mesh_count_v++;
+				this.mesh_count_i++;
+			}
+		}
+		// Build ceil
+		M.vec3.set(n, 0, -1, 0);
+		const floor_length_v:number = this.mesh_count_v - floor_offset_v;
+		const floor_length_i:number = this.mesh_count_i - floor_offset_i;
+		// reconstruct floor vertices as ceiling
+		for(let i=floor_offset_v; i<this.mesh_count_v; i++) {
+			this.mesh_vertices.push(	this.mesh_vertices[i*3], 
+										this.mesh_vertices[i*3 + 1] + this.wall_height, 
+										this.mesh_vertices[i*3 + 2]);
+			this.mesh_normals.push(...n);
+			this.mesh_albedo.push(...this.ceil_albedo);
+			this.mesh_rough_metal.push(...this.ceil_rough_metal);
+		}
+		this.mesh_count_v += floor_length_v;
+		// reconstruct floor indices as ceiling
+		for(let i=0; i<floor_length_i; i+=3) {
+			// reverse order when placing indices
+			this.mesh_indices.push(this.mesh_indices[i + floor_offset_i] + floor_length_v);
+			this.mesh_indices.push(this.mesh_indices[i+2 + floor_offset_i] + floor_length_v);
+			this.mesh_indices.push(this.mesh_indices[i+1 + floor_offset_i] + floor_length_v);
+		}
+		this.mesh_count_i += floor_length_i;
 	}
 }
 

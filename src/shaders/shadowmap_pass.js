@@ -31,13 +31,7 @@ void main() {
 
 // FRAGMENT SHADER
 export const shadowmap_pass_f = `
-precision highp float;
-const float near = 0.1;
-const float far = 20.0;
 void main() { 
-	/* DEBUG STUFF */
-	//float z = (2.0 * near) / (far + near - (gl_FragCoord.z) * (far - near));
-	//gl_FragColor = vec4(vec3(z), 1.0);
 	gl_FragColor = vec4(1.0,1.0,1.0,1.0); 
 }
 `

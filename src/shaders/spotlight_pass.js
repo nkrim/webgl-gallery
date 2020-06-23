@@ -64,7 +64,7 @@ uniform float u_light_falloff;
 
 // constants
 const float PI = 3.14159265359;
-const float shadow_bias = 0.0001;
+const float shadow_bias = 0.00001;
 
 
 // pbr functions
@@ -102,8 +102,6 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     return ggx1 * ggx2;
 }
 
-const float near = 0.1;
-const float far = 20.0;
 void main() {
 	// grab texture values
 	vec3 P = texture2D(u_pos_tex, v_texcoord).xyz;
@@ -125,7 +123,7 @@ void main() {
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
     float depth_sample = texture2D(u_shadow_atlas_tex, P_from_light.xy).x;
-    if(P_from_light.z > depth_sample)
+    if(P_from_light.z > depth_sample + shadow_bias)
         discard;
 
     gl_FragColor = vec4(I*A*u_light_color, 1.0);

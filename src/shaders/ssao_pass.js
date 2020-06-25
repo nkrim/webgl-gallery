@@ -31,7 +31,7 @@ void main() {
 
 // FRAGMENT SHADER (generator)
 export function gen_ssao_pass_f(viewport_width, viewport_height) {return `#version 300 es
-precision highp float;
+precision mediump float;
 
 // noise sampling constants
 const float viewport_width = ${viewport_width}.0;

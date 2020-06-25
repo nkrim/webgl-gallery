@@ -178,6 +178,7 @@ function gen_screen_depth_texture(gl, filter_function, dimensions) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_function);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
 	const level = 0;
 	const internalFormat = gl.DEPTH_COMPONENT16;
 	const width = dimensions[0];
@@ -217,7 +218,7 @@ function init_textures(gl) {
 	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
-	tx_obj.shadow_atlas = gen_screen_depth_texture(gl, gl.NEAREST);
+	tx_obj.shadow_atlas = gen_screen_depth_texture(gl, gl.LINEAR);
 	// light accumulation buffer
 	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
 	// screen write texture

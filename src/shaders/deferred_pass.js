@@ -42,7 +42,7 @@ void main() {
 `;
 
 export const deferred_pass_f = `#version 300 es
-precision highp float;
+precision mediump float;
 
 const float far = 100.0;
 const float near = 0.1;

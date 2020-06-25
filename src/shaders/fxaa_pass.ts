@@ -58,7 +58,7 @@ export function gen_fxaa_pass_f(viewport_width:number, viewport_height:number, q
 		return '';
 	}
 	const a = `#version 300 es
-precision highp float;
+precision mediump float;
 
 // sampling constants
 const float viewport_width = ${viewport_width}.0;

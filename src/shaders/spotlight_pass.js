@@ -37,7 +37,8 @@ void main() {
 
 // FRAGMENT SHADER
 export const spotlight_pass_f = `#version 300 es
-precision highp float;
+precision mediump float;
+precision mediump sampler2DShadow;
 
 // varyings
 in vec2 v_texcoord;
@@ -47,7 +48,7 @@ uniform sampler2D u_pos_tex;
 uniform sampler2D u_norm_tex;
 uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
-uniform sampler2D u_shadow_atlas_tex;
+uniform sampler2DShadow u_shadow_atlas_tex;
 
 // matrix uniforms
 uniform mat4 u_camera_view_to_light_screen;
@@ -124,11 +125,13 @@ void main() {
     P_from_light.xyz /= P_from_light.w;
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
-    float depth_sample = texture(u_shadow_atlas_tex, P_from_light.xy).x;
-    if(P_from_light.z > depth_sample + shadow_bias)
+    float shadow_sample = texture(u_shadow_atlas_tex, P_from_light.xyz, shadow_bias);
+    /*if(P_from_light.z > depth_sample + shadow_bias)
+        discard;*/
+    if(shadow_sample < 0.0001)
         discard;
 
-    o_fragcolor = vec4(I*A*u_light_color, 1.0);
+    o_fragcolor = vec4(I*A*u_light_color*shadow_sample, 1.0);
     //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
     //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);
     return;

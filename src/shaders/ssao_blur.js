@@ -24,7 +24,7 @@ void main() {
 // FRAGMENT SHADER (generator)
 export function gen_ssao_blur_f(screen_width, screen_height) {
 let a = `#version 300 es
-precision highp float;
+precision mediump float;
 
 // varyings
 in vec2 v_texcoord;

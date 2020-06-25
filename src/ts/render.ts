@@ -118,56 +118,6 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
 		gl.uniformMatrix4fv( shader.uniforms.it_mv_m, false, it_mv_m);
 
-		// CONTEXTUALIZE POSITION INFORMATION
-		/*const full_stride:number = 44; // 12+12+12+8
-		gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.room.vertices);
-		{
-			const attribute:		number = shader.attribs.vertex_pos;
-			const num_components:	number = 3;
-			const type:				number = gl.FLOAT;
-			const normalize:		boolean = false;
-			const stride:			number = full_stride;
-			const offset:			number = room.buffer_offset_v*4;
-			gl.vertexAttribPointer(attribute, num_components, type, normalize, stride, offset);
-			gl.enableVertexAttribArray(attribute);
-		}
-		// CONTEXTUALIZE NORMAL INFORMATION
-		{
-			const attribute:		number = shader.attribs.normal_dir;
-			const num_components:	number = 3;
-			const type:				number = gl.FLOAT;
-			const normalize:		boolean = false;
-			const stride:			number = full_stride;
-			const offset:			number = room.buffer_offset_v*4 + 12;
-			// gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.vertices);
-			gl.vertexAttribPointer(attribute, num_components, type, normalize, stride, offset);
-			gl.enableVertexAttribArray(attribute);
-		}
-		// CONTEXTUALIZE ALBEDO INFORMATION
-		{
-			const attribute:		number = shader.attribs.albedo;
-			const num_components:	number = 3;
-			const type:				number = gl.FLOAT;
-			const normalize:		boolean = false;
-			const stride:			number = full_stride;
-			const offset:			number = room.buffer_offset_v*4 + 24;
-			// gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.vertices);
-			gl.vertexAttribPointer(attribute, num_components, type, normalize, stride, offset);
-			gl.enableVertexAttribArray(attribute);
-		}
-		// CONTEXTUALIZE ROUGH/METAL INFORMATION
-		{
-			const attribute:		number = shader.attribs.rough_metal;
-			const num_components:	number = 2;
-			const type:				number = gl.FLOAT;
-			const normalize:		boolean = false;
-			const stride:			number = full_stride;
-			const offset:			number = room.buffer_offset_v*4 + 36;
-			// gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.vertices);
-			gl.vertexAttribPointer(attribute, num_components, type, normalize, stride, offset);
-			gl.enableVertexAttribArray(attribute);
-		}*/
-
 		// UNIFORMS SET
 		gl.uniform3fv(shader.uniforms.ambient_c, room.ambient_color);
 		gl.uniform1f(shader.uniforms.ambient_i, room.ambient_intensity);
@@ -207,13 +157,6 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 	gl.cullFace(gl.BACK);
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
-
-	// vertex attrib for positions (texcoords derived from positions)
-	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
-	gl.vertexAttribPointer(
-		shader.attribs.vertex_pos,
-		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
@@ -268,13 +211,6 @@ function ssao_blur(gl:any, pd:any):void {
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// vertex attrib for positions (texcoords derived from positions)
-	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
-	gl.vertexAttribPointer(
-		shader.attribs.vertex_pos,
-		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
-
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_pass);
@@ -310,13 +246,6 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// vertex attrib for positions (texcoords derived from positions)
-	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
-	gl.vertexAttribPointer(
-		shader.attribs.vertex_pos,
-		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
-
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[1]);
@@ -334,6 +263,9 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 4);
 
+	// shadowmap uniform set
+	gl.uniform2f(shader.uniforms.shadowmap_dims, gl.canvas.clientWidth, gl.canvas.clientHeight);
+
 	// matrix uniform set
 	const view_m:mat4 = pd.cam.get_view_matrix();
 	const inv_view_m:mat4 = M.mat4.create();
@@ -342,8 +274,6 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	M.mat4.mul(c_view_to_l_screen, light.cam.get_view_matrix(), inv_view_m);
 	M.mat4.mul(c_view_to_l_screen, light.proj_m, c_view_to_l_screen);
 	gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_screen, false, c_view_to_l_screen);
-
-
 
 	// light uniform set
 	const v4:vec4 = M.vec4.create();
@@ -386,13 +316,6 @@ function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
 	gl.cullFace(gl.BACK);
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
-
-	// vertex attrib for positions (texcoords derived from positions)
-	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
-	gl.vertexAttribPointer(
-		shader.attribs.vertex_pos,
-		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// uniform set
 	gl.uniformMatrix4fv(
@@ -446,13 +369,6 @@ function fxaa_pass(gl:any, pd:any):void {
 	gl.cullFace(gl.BACK);
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
-
-	// vertex attrib for positions (texcoords derived from positions)
-	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
-	gl.vertexAttribPointer(
-		shader.attribs.vertex_pos,
-		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture

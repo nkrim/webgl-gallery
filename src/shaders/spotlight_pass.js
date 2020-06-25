@@ -10,6 +10,8 @@ export const spotlight_pass_l = {
         rough_metal_tex: 'u_rough_metal_tex',
         shadow_atlas_tex: 'u_shadow_atlas_tex',
 
+        shadowmap_dims: 'u_shadowmap_dims',
+
         camera_view_to_light_screen: 'u_camera_view_to_light_screen',
 
         light_pos: 'u_light_pos',
@@ -49,6 +51,9 @@ uniform sampler2D u_norm_tex;
 uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
 uniform sampler2DShadow u_shadow_atlas_tex;
+
+// shadowmap uniform
+uniform vec2 u_shadowmap_dims;
 
 // matrix uniforms
 uniform mat4 u_camera_view_to_light_screen;
@@ -125,13 +130,26 @@ void main() {
     P_from_light.xyz /= P_from_light.w;
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
-    float shadow_sample = texture(u_shadow_atlas_tex, P_from_light.xyz, shadow_bias);
+    //float shadow_sample = texture(u_shadow_atlas_tex, P_from_light.xyz, shadow_bias);
     /*if(P_from_light.z > depth_sample + shadow_bias)
         discard;*/
-    if(shadow_sample < 0.0001)
+
+    // PCF sampling (nvidia 4 sample approach)
+    vec2 offset = fract(P_from_light.xy * 0.5);
+    offset.x = float(offset.x > 0.25); offset.y = float(offset.y > 0.25);
+    offset.y += offset.x;
+    if(offset.y > 1.1) offset.y = 0.0;
+    float shadow_coeff =  (
+            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(-1.5, 0.5))/u_shadowmap_dims, 0.0)) + 
+            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(0.5, 0.5))/u_shadowmap_dims, 0.0)) +
+            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(-1.5, -1.5))/u_shadowmap_dims, 0.0)) +
+            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(0.5, -1.5))/u_shadowmap_dims, 0.0)) 
+        ) * 0.25; 
+
+    if(shadow_coeff < 0.0001)
         discard;
 
-    o_fragcolor = vec4(I*A*u_light_color*shadow_sample, 1.0);
+    o_fragcolor = vec4(I*A*u_light_color*shadow_coeff, 1.0);
     //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
     //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);
     return;

@@ -36,12 +36,11 @@ export const fxaa_pass_l:any = {
 }
 
 // VERTEX SHADER
-export const fxaa_pass_v:string = `
-#version 100
+export const fxaa_pass_v:string = `#version 300 es
 
-attribute vec3 a_vert;
+layout(location = 0) in vec3 a_vert;
 
-varying vec2 v_texcoord;
+out vec2 v_texcoord;
 
 void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
@@ -58,7 +57,7 @@ export function gen_fxaa_pass_f(viewport_width:number, viewport_height:number, q
 		console.error('ERROR: gen_fxaa_pass_f: quality object does not contain all expected fields');
 		return '';
 	}
-	const a = `
+	const a = `#version 300 es
 precision highp float;
 
 // sampling constants
@@ -67,14 +66,17 @@ const float viewport_height = ${viewport_height}.0;
 const vec2 texel_size = vec2(1.0/viewport_width, 1.0/viewport_height);
 
 // varyings
-varying vec2 v_texcoord;
+in vec2 v_texcoord;
 
 // texture uniforms
 uniform sampler2D u_screen_tex;
 
+// output
+out vec4 o_fragcolor;
+
 // sample function
 float sample_lum(vec2 uv) {
-	return texture2D(u_screen_tex, uv).g;
+	return texture(u_screen_tex, uv).g;
 }
 
 // main function
@@ -83,7 +85,7 @@ void main() {
 	// PRIMARY SUB-PIXEL BLENDING
 	// --------------------------
 	// sample luminance data from cross pattern around fragment (from green value)
-	vec3 original_pixel = texture2D(u_screen_tex, v_texcoord).rgb;
+	vec3 original_pixel = texture(u_screen_tex, v_texcoord).rgb;
 	float l_m = original_pixel.g;
 	float l_n = sample_lum(v_texcoord + (texel_size*vec2(0.0,1.0)));
 	float l_e = sample_lum(v_texcoord + (texel_size*vec2(1.0,0.0)));
@@ -97,7 +99,7 @@ void main() {
 	// discard (use original sample) if below thresholds
 	if(contrast < ${FXAA_CONTRAST_THRESHOLD} || contrast < ${FXAA_RELATIVE_THRESHOLD}*l_high) {
 		//discard;
-		gl_FragColor = vec4(original_pixel, 1.0);
+		o_fragcolor = vec4(original_pixel, 1.0);
 		return;
 	}
 
@@ -194,19 +196,19 @@ void main() {
 	// determine final blend w max of pixel blend and edge blend
 	float final_blend = max(pixel_blend, edge_blend) * pixel_step;
 
-	// gl_FragColor = vec4(vec3(edge_blend*2.0), 1.0);
+	// o_fragcolor = vec4(vec3(edge_blend*2.0), 1.0);
 	// return;
 
 	// adjust uv and sample final color from screen
 	vec2 final_uv = v_texcoord;
 	final_uv += is_horiz ? vec2(0.0, final_blend) : vec2(final_blend, 0.0);
 	
-	vec3 final_sample = texture2D(u_screen_tex, final_uv).xyz;
-	gl_FragColor = vec4(vec3(final_sample), 1.0);
+	vec3 final_sample = texture(u_screen_tex, final_uv).xyz;
+	o_fragcolor = vec4(vec3(final_sample), 1.0);
 	// debug original
-	//gl_FragColor = vec4(original_pixel, 1.0);
+	//o_fragcolor = vec4(original_pixel, 1.0);
 	// debug color
-	//gl_FragColor = pixel_step < 0.0 ? vec4(1.0,0.0,0.0,1.0) : vec4(0.0,1.0,0.0,1.0);
+	//o_fragcolor = pixel_step < 0.0 ? vec4(1.0,0.0,0.0,1.0) : vec4(0.0,1.0,0.0,1.0);
 }
 `
 	return a + b + c;

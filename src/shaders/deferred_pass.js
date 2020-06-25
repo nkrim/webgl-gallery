@@ -13,23 +13,22 @@ export const deferred_pass_l = {
 		ambient_i: 'u_ambient_i',
 	}
 }
-export const deferred_pass_v = `
-#version 100
+export const deferred_pass_v = `#version 300 es
 
-attribute vec3 a_vert;
-attribute vec3 a_norm;
-attribute vec3 a_albedo;
-attribute vec2 a_rough_metal;
+layout(location = 0) in vec3 a_vert;
+layout(location = 1) in vec3 a_norm;
+layout(location = 2) in vec3 a_albedo;
+layout(location = 3) in vec2 a_rough_metal;
 
 uniform mat4 u_mv;
 uniform mat4 u_it_mv;
 uniform mat4 u_proj;
 
-varying vec4 v_model_pos;
-varying vec4 v_eye_pos;
-varying vec3 v_normal;
-varying vec3 v_albedo;
-varying vec2 v_rough_metal;
+out vec4 v_model_pos;
+out vec4 v_eye_pos;
+out vec3 v_normal;
+out vec3 v_albedo;
+out vec2 v_rough_metal;
 
 void main() {
 	v_model_pos = vec4(a_vert, 1.0);
@@ -42,32 +41,36 @@ void main() {
 }
 `;
 
-export const deferred_pass_f = `
-#extension GL_EXT_draw_buffers : require
-
+export const deferred_pass_f = `#version 300 es
 precision highp float;
 
 const float far = 100.0;
 const float near = 0.1;
 
-varying vec4 v_model_pos;
-varying vec4 v_eye_pos;
-varying vec3 v_normal;
-varying vec3 v_albedo;
-varying vec2 v_rough_metal;
+in vec4 v_model_pos;
+in vec4 v_eye_pos;
+in vec3 v_normal;
+in vec3 v_albedo;
+in vec2 v_rough_metal;
 
 uniform vec3 u_ambient_c;
 uniform float u_ambient_i;
 
+layout(location = 0) out vec4 o_depth;
+layout(location = 1) out vec4 o_pos;
+layout(location = 2) out vec4 o_norm;
+layout(location = 3) out vec4 o_albedo;
+layout(location = 4) out vec4 o_rough_metal;
+layout(location = 5) out vec4 o_ambient;
+
 void main() {
 	float z = (2.0 * near) / (far + near - (gl_FragCoord.z) * (far - near));
-	gl_FragData[0] = vec4(vec3(z), 1.0);
-  	gl_FragData[1] = vec4(v_eye_pos.xyz, 1.0);
-  	gl_FragData[2] = vec4(normalize(v_normal), 1.0);
-  	gl_FragData[3] = vec4(v_albedo, 1.0);
-  	gl_FragData[4] = vec4(v_rough_metal, 0.0, 1.0);
-  	gl_FragData[4] = vec4(v_rough_metal, 0.0, 1.0);
-  	gl_FragData[5] = vec4(u_ambient_i*u_ambient_c, 1.0);
+	o_depth			= vec4(vec3(z), 1.0);
+  	o_pos			= vec4(v_eye_pos.xyz, 1.0);
+  	o_norm			= vec4(normalize(v_normal), 1.0);
+  	o_albedo		= vec4(v_albedo, 1.0);
+  	o_rough_metal	= vec4(v_rough_metal, 0.0, 1.0);
+  	o_ambient		= vec4(u_ambient_i*u_ambient_c, 1.0);
 }
 
 `;

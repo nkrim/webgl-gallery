@@ -17,12 +17,11 @@ export const ssao_pass_l = {
 }
 
 // VERTEX SHADER
-export const ssao_pass_v = `
-#version 100
+export const ssao_pass_v = `#version 300 es
 
-attribute vec3 a_vert;
+layout(location = 0) in vec3 a_vert;
 
-varying vec2 v_texcoord;
+out vec2 v_texcoord;
 
 void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
@@ -31,7 +30,7 @@ void main() {
 `;
 
 // FRAGMENT SHADER (generator)
-export function gen_ssao_pass_f(viewport_width, viewport_height) {return `
+export function gen_ssao_pass_f(viewport_width, viewport_height) {return `#version 300 es
 precision highp float;
 
 // noise sampling constants
@@ -46,7 +45,7 @@ const float sample_radius = ${SSAO_SAMPLE_RADIUS};
 const float sample_depth_bias = 0.0;//0.025;
 
 // varyings
-varying vec2 v_texcoord;
+in vec2 v_texcoord;
 
 // texture uniforms
 uniform sampler2D u_pos_tex;
@@ -57,12 +56,14 @@ uniform sampler2D u_noise_tex;
 uniform vec3 u_samples[${SSAO_KERNEL_SIZE}];
 uniform mat4 u_proj;
 
+// out
+out vec4 o_fragcolor;
 
 void main() {
 	// sample data of current fragment from textures
-	vec3 pos = texture2D(u_pos_tex, v_texcoord).xyz; 
-	vec3 norm = texture2D(u_norm_tex, v_texcoord).xyz; 
-	vec3 rand = texture2D(u_noise_tex, noise_scale*v_texcoord).xyz;
+	vec3 pos = texture(u_pos_tex, v_texcoord).xyz; 
+	vec3 norm = texture(u_norm_tex, v_texcoord).xyz; 
+	vec3 rand = texture(u_noise_tex, noise_scale*v_texcoord).xyz;
 	
 	// construct tbn using randomized vector from noise as a means of acquiring a random tangent
 	vec3 tangent = normalize(rand - norm * dot(rand, norm));
@@ -73,26 +74,26 @@ void main() {
 	float occlusion = 0.0;
 	for(int i=0; i<kernel_size; i++) {
 		// transform sample to view-space
-		vec3 sample = tbn * u_samples[i];
-		sample = pos + sample*sample_radius;
+		vec3 view_sample = tbn * u_samples[i];
+		view_sample = pos + view_sample*sample_radius;
 
 		// get pixel in screen space from view-space coordinate
-		vec4 ss_sample = vec4(sample, 1.0);
+		vec4 ss_sample = vec4(view_sample, 1.0);
 		ss_sample = u_proj * ss_sample;
 		ss_sample.xyz /= ss_sample.w;
 		// get texel from pixel
 		ss_sample.xyz = ss_sample.xyz*0.5 + 0.5;
 
 		// sample real depth of pixel from position gbuffer
-		float sample_depth = texture2D(u_pos_tex, ss_sample.xy).z;
+		float sample_depth = texture(u_pos_tex, ss_sample.xy).z;
 
 		// compare depth with offset-sample expected depth, add result to occlusion
 		float range_bias = smoothstep(0.0, 1.0, sample_radius / abs(pos.z - sample_depth));
-		occlusion += (sample_depth >= sample.z + sample_depth_bias ? 1.0 : 0.0) * range_bias;  
+		occlusion += (sample_depth >= view_sample.z + sample_depth_bias ? 1.0 : 0.0) * range_bias;  
 	}
 
 	occlusion = 1.0 - occlusion/float(kernel_size);
-  	gl_FragColor = vec4(vec3(occlusion), 1.0);
+  	o_fragcolor = vec4(vec3(occlusion), 1.0);
 }
 
 `};

@@ -52,28 +52,17 @@ function shadowmap_pass(gl:any, pd:any):void {
 		const mv_m:mat4 = light.cam.get_view_matrix();
 		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
 
-		// contextualize position information
-		const full_stride:number = 44; // 12+12+12+8
-		gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.room.vertices);
-		{
-			const attribute:		number = shader.attribs.vertex_pos;
-			const num_components:	number = 3;
-			const type:				number = gl.FLOAT;
-			const normalize:		boolean = false;
-			const stride:			number = full_stride;
-			const offset:			number = room.buffer_offset_v*4;
-			gl.vertexAttribPointer(attribute, num_components, type, normalize, stride, offset);
-			gl.enableVertexAttribArray(attribute);
-		}
-
+		// BIND VAO
+		gl.bindVertexArray(pd.vaos.room);
 		// DRAW
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.room.indices);
 		{
 			const element_count :number = room.mesh_count_i;
 			const type			:number = gl.UNSIGNED_SHORT;
-			const offset 		:number = light.buffer_offset_i;
+			const offset 		:number = room.buffer_offset_i;
 			gl.drawElements(gl.TRIANGLES, element_count, type, offset);
 		}
+		// UNBIND VAO
+		gl.bindVertexArray(null);
 	}
 
 
@@ -130,7 +119,7 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 		gl.uniformMatrix4fv( shader.uniforms.it_mv_m, false, it_mv_m);
 
 		// CONTEXTUALIZE POSITION INFORMATION
-		const full_stride:number = 44; // 12+12+12+8
+		/*const full_stride:number = 44; // 12+12+12+8
 		gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.room.vertices);
 		{
 			const attribute:		number = shader.attribs.vertex_pos;
@@ -177,20 +166,23 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 			// gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.vertices);
 			gl.vertexAttribPointer(attribute, num_components, type, normalize, stride, offset);
 			gl.enableVertexAttribArray(attribute);
-		}
+		}*/
 
 		// UNIFORMS SET
 		gl.uniform3fv(shader.uniforms.ambient_c, room.ambient_color);
 		gl.uniform1f(shader.uniforms.ambient_i, room.ambient_intensity);
 
+		// BIND VAO
+		gl.bindVertexArray(pd.vaos.room);
 		// DRAW
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.room.indices);
 		{
 			const element_count :number = room.mesh_count_i;
 			const type			:number = gl.UNSIGNED_SHORT;
 			const offset 		:number = room.buffer_offset_i;
 			gl.drawElements(gl.TRIANGLES, element_count, type, offset);
 		}
+		// UNBIND VAO
+		gl.bindVertexArray(null);
 	}
 }
 
@@ -217,11 +209,11 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// vertex attrib for positions (texcoords derived from positions)
-	gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
+	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
 	gl.vertexAttribPointer(
 		shader.attribs.vertex_pos,
 		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);
+	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
@@ -243,9 +235,12 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 		false,
 		proj_m);
 
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
 	// draw
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
 
 	// reset viewport
 	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
@@ -274,20 +269,23 @@ function ssao_blur(gl:any, pd:any):void {
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// vertex attrib for positions (texcoords derived from positions)
-	gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
+	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
 	gl.vertexAttribPointer(
 		shader.attribs.vertex_pos,
 		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);
+	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_pass);
 	gl.uniform1i(shader.uniforms.ssao_tex, 0);
 
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
 	// draw
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
 
 	// reset viewport
 	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
@@ -313,11 +311,11 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// vertex attrib for positions (texcoords derived from positions)
-	gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
+	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
 	gl.vertexAttribPointer(
 		shader.attribs.vertex_pos,
 		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);
+	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
@@ -362,9 +360,12 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.uniform1f(shader.uniforms.light_o_angle, light.o_angle);
 	gl.uniform1f(shader.uniforms.light_falloff, light.falloff);
 
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
 	// draw
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
 }
 
 /* QUAD DRAWN GBUFFER COMBINE PASS
@@ -387,11 +388,11 @@ function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// vertex attrib for positions (texcoords derived from positions)
-	gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
+	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
 	gl.vertexAttribPointer(
 		shader.attribs.vertex_pos,
 		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);
+	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// uniform set
 	gl.uniformMatrix4fv(
@@ -419,9 +420,12 @@ function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.light_val);
 	gl.uniform1i(shader.uniforms.light_tex, 5);
 
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
 	// draw
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
 }
 
 /* FXAA PASS
@@ -444,20 +448,23 @@ function fxaa_pass(gl:any, pd:any):void {
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// vertex attrib for positions (texcoords derived from positions)
-	gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
+	/*gl.bindBuffer(gl.ARRAY_BUFFER, pd.buffers.quad.vertices);
 	gl.vertexAttribPointer(
 		shader.attribs.vertex_pos,
 		2, gl.FLOAT, false, 0, 0);
-	gl.enableVertexAttribArray(shader.attribs.vertex_pos);
+	gl.enableVertexAttribArray(shader.attribs.vertex_pos);*/
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.screen_tex);
 	gl.uniform1i(shader.uniforms.scren_tex, 0);
 
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
 	// draw
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pd.buffers.quad.indices)
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
 }
 
 /* FINAL RENDER FUNCTION

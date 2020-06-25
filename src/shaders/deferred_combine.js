@@ -12,17 +12,16 @@ export const deferred_combine_l = {
 		light_tex: 'u_light_tex',
 	}
 }
-export const deferred_combine_v = `
-#version 100
+export const deferred_combine_v = `#version 300 es
 
-attribute vec3 a_vert;
+layout(location = 0) in vec3 a_vert;
 
 uniform mat4 u_view;
 
 const vec4 to_sun = vec4(normalize(vec3(1.0,1.0,0.5)), 0.0);
 
-varying vec2 v_texcoord;
-varying vec3 v_to_sun;
+out vec2 v_texcoord;
+out vec3 v_to_sun;
 
 void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
@@ -31,11 +30,11 @@ void main() {
 }
 `;
 
-export const deferred_combine_f = `
+export const deferred_combine_f = `#version 300 es
 precision highp float;
 
-varying vec2 v_texcoord;
-varying vec3 v_to_sun;
+in vec2 v_texcoord;
+in vec3 v_to_sun;
 
 uniform sampler2D u_pos_tex;
 uniform sampler2D u_norm_tex;
@@ -44,23 +43,25 @@ uniform sampler2D u_ambient_tex;
 uniform sampler2D u_ssao_tex;
 uniform sampler2D u_light_tex;
 
+out vec4 o_fragcolor;
+
 vec3 diffuse(vec3 N, vec3 L, vec3 C) {
 	return max(dot(N, L), 0.0) * C;
 }
 
 void main() {
-	vec3 norm = texture2D(u_norm_tex, v_texcoord).xyz; 
-	vec3 obj_color = texture2D(u_color_tex, v_texcoord).xyz;
-	vec3 light_val = texture2D(u_light_tex, v_texcoord).xyz;
+	vec3 norm = texture(u_norm_tex, v_texcoord).xyz; 
+	vec3 obj_color = texture(u_color_tex, v_texcoord).xyz;
+	vec3 light_val = texture(u_light_tex, v_texcoord).xyz;
 
 	//vec3 diffuse_v = diffuse(norm, v_to_sun, sun_c);
-	vec3 ambient_v = texture2D(u_ambient_tex, v_texcoord).xyz * texture2D(u_ssao_tex, v_texcoord).x;
+	vec3 ambient_v = texture(u_ambient_tex, v_texcoord).xyz * texture(u_ssao_tex, v_texcoord).x;
 	vec3 final_c = (ambient_v + light_val) * obj_color;
 
 	// gamma encoding
 	final_c = pow(final_c, vec3(1.0/2.2)); 
 
-  	gl_FragColor = vec4(final_c, 1.0);
+  	o_fragcolor = vec4(final_c, 1.0);
 }
 
 `;

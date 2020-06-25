@@ -23,12 +23,11 @@ export const spotlight_pass_l = {
 }
 
 // VERTEX SHADER
-export const spotlight_pass_v = `
-#version 100
+export const spotlight_pass_v = `#version 300 es
 
-attribute vec3 a_vert;
+layout(location = 0) in vec3 a_vert;
 
-varying vec2 v_texcoord;
+out vec2 v_texcoord;
 
 void main() {
 	v_texcoord = (a_vert.xy) * 0.5 + vec2(0.5);
@@ -37,11 +36,11 @@ void main() {
 `;
 
 // FRAGMENT SHADER
-export const spotlight_pass_f = `
+export const spotlight_pass_f = `#version 300 es
 precision highp float;
 
 // varyings
-varying vec2 v_texcoord;
+in vec2 v_texcoord;
 
 // texture uniforms
 uniform sampler2D u_pos_tex;
@@ -65,6 +64,9 @@ uniform float u_light_falloff;
 // constants
 const float PI = 3.14159265359;
 const float shadow_bias = 0.00001;
+
+// out
+out vec4 o_fragcolor;
 
 
 // pbr functions
@@ -104,10 +106,10 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
 void main() {
 	// grab texture values
-	vec3 P = texture2D(u_pos_tex, v_texcoord).xyz;
-	vec3 N = texture2D(u_norm_tex, v_texcoord).xyz;
-	vec3 A = texture2D(u_albedo_tex, v_texcoord).xyz;
-	vec2 RM = texture2D(u_rough_metal_tex, v_texcoord).xy;
+	vec3 P = texture(u_pos_tex, v_texcoord).xyz;
+	vec3 N = texture(u_norm_tex, v_texcoord).xyz;
+	vec3 A = texture(u_albedo_tex, v_texcoord).xyz;
+	vec2 RM = texture(u_rough_metal_tex, v_texcoord).xy;
 
 	// spotlight intensity value
 	vec3 l_to_p = normalize(P - u_light_pos);
@@ -122,13 +124,13 @@ void main() {
     P_from_light.xyz /= P_from_light.w;
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
-    float depth_sample = texture2D(u_shadow_atlas_tex, P_from_light.xy).x;
+    float depth_sample = texture(u_shadow_atlas_tex, P_from_light.xy).x;
     if(P_from_light.z > depth_sample + shadow_bias)
         discard;
 
-    gl_FragColor = vec4(I*A*u_light_color, 1.0);
-    //gl_FragColor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
-    //gl_FragColor = vec4(P_from_light.xy, 0.0, 1.0);
+    o_fragcolor = vec4(I*A*u_light_color, 1.0);
+    //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
+    //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);
     return;
 
 
@@ -183,7 +185,7 @@ void main() {
     Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     */
     
-    gl_FragColor = vec4(I*u_light_color*A, 1.0);
+    o_fragcolor = vec4(I*u_light_color*A, 1.0);
 }
 
 `;

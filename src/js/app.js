@@ -66,17 +66,31 @@ function init_shader_program(gl, vs_source, fs_source, loc_lookup) {
 	return shader_data;
 }
 
-function init_buffers(gl, room_list) {
+export const attribute_locs = {
+	position: 0,
+	normal: 1,
+	albedo: 2,
+	rough_metal: 3,
+}
+function init_vaos(gl, room_list) {
 	// quad buffer
 	// ----------------------
+	// vao
+	const quad_vao = gl.createVertexArray();
+	gl.bindVertexArray(quad_vao);
 	// vertex buffer
 	const quad_vertex_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ARRAY_BUFFER, quad_vertex_buffer);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([1,1,-1,1,-1,-1,1,-1]), gl.STATIC_DRAW);
+	gl.enableVertexAttribArray(attribute_locs.position);
+	gl.vertexAttribPointer(attribute_locs.position, 2, gl.FLOAT, false, 0, 0);
 	// index buffer
 	const quad_index_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, quad_index_buffer);
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2,0,2,3]), gl.STATIC_DRAW);
+	// unbind vao
+	gl.bindVertexArray(null);
+
 
 	// room buffer
 	// ----------------------
@@ -100,24 +114,33 @@ function init_buffers(gl, room_list) {
 		room.buffer_offset_v = offset_v;
 		room.buffer_offset_i = offset_i;
 	}
+	// create vao
+	const room_vao = gl.createVertexArray();
+	gl.bindVertexArray(room_vao);
 	// vertex buffer
 	const room_vertex_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ARRAY_BUFFER, room_vertex_buffer);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(all_room_vertices), gl.STATIC_DRAW);
+	// set attribute information
+	const full_stride = 44; // 12+12+12+8
+	gl.enableVertexAttribArray(attribute_locs.position);
+	gl.vertexAttribPointer(attribute_locs.position, 3, gl.FLOAT, false, full_stride, 0);
+	gl.enableVertexAttribArray(attribute_locs.normal);
+	gl.vertexAttribPointer(attribute_locs.normal, 3, gl.FLOAT, false, full_stride, 12);
+	gl.enableVertexAttribArray(attribute_locs.albedo);
+	gl.vertexAttribPointer(attribute_locs.albedo, 3, gl.FLOAT, false, full_stride, 24);
+	gl.enableVertexAttribArray(attribute_locs.rough_metal);
+	gl.vertexAttribPointer(attribute_locs.rough_metal, 2, gl.FLOAT, false, full_stride, 36);
 	// index buffer
 	const room_index_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, room_index_buffer);
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(all_room_indices), gl.STATIC_DRAW);
+	// unbind vao
+	gl.bindVertexArray(null);
 
 	return {
-		quad: {
-			vertices: quad_vertex_buffer,
-			indices: quad_index_buffer,
-		},
-		room: {
-			vertices: room_vertex_buffer,
-			indices: room_index_buffer,
-		},
+		quad: quad_vao,
+		room: room_vao,
 	};
 }
 
@@ -133,7 +156,7 @@ function gen_screen_color_texture(gl, filter_function, dimensions) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	const level = 0;
-	const internalFormat = gl.RGBA;
+	const internalFormat = gl.RGBA16F;
 	const width = dimensions[0];
 	const height = dimensions[1];
 	const border = 0;
@@ -156,7 +179,7 @@ function gen_screen_depth_texture(gl, filter_function, dimensions) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	const level = 0;
-	const internalFormat = gl.DEPTH_COMPONENT;
+	const internalFormat = gl.DEPTH_COMPONENT16;
 	const width = dimensions[0];
 	const height = dimensions[1];
 	const border = 0;
@@ -207,7 +230,7 @@ function init_textures(gl) {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array([1,1,1,1])); 
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, 1, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array([1,1,1,1])); 
 		tx_obj.white = tx;
 	}
 
@@ -222,21 +245,21 @@ function init_deferred_framebuffer(gl, tx) {
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, tx.depth, 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_2D, tx.bufs[0], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT1_WEBGL, gl.TEXTURE_2D, tx.bufs[1], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT2_WEBGL, gl.TEXTURE_2D, tx.bufs[2], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT3_WEBGL, gl.TEXTURE_2D, tx.bufs[3], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT4_WEBGL, gl.TEXTURE_2D, tx.bufs[4], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.ext.db.COLOR_ATTACHMENT5_WEBGL, gl.TEXTURE_2D, tx.bufs[5], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tx.bufs[0], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, tx.bufs[1], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, tx.bufs[2], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, tx.bufs[3], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT4, gl.TEXTURE_2D, tx.bufs[4], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT5, gl.TEXTURE_2D, tx.bufs[5], 0);
 
 	// DRAW BUFFERS
-	gl.ext.db.drawBuffersWEBGL([
-		gl.ext.db.COLOR_ATTACHMENT0_WEBGL, 
-		gl.ext.db.COLOR_ATTACHMENT1_WEBGL, 
-		gl.ext.db.COLOR_ATTACHMENT2_WEBGL,
-		gl.ext.db.COLOR_ATTACHMENT3_WEBGL,
-		gl.ext.db.COLOR_ATTACHMENT4_WEBGL,
-		gl.ext.db.COLOR_ATTACHMENT5_WEBGL,
+	gl.drawBuffers([
+		gl.COLOR_ATTACHMENT0, 
+		gl.COLOR_ATTACHMENT1, 
+		gl.COLOR_ATTACHMENT2,
+		gl.COLOR_ATTACHMENT3,
+		gl.COLOR_ATTACHMENT4,
+		gl.COLOR_ATTACHMENT5,
 	]);
 
 	// unbind
@@ -317,7 +340,7 @@ function gen_ssao_kernel_and_noise(gl, tx_obj) {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 		const level = 0;
-		const internalFormat = gl.RGB;
+		const internalFormat = gl.RGB16F;
 		const width = tex_dimension;
 		const height = tex_dimension;
 		const border = 0;
@@ -362,7 +385,7 @@ function main_init(gl, room_list) {
 	};
 
 	// BUFFER INIT
-	const buffer_data = init_buffers(gl, room_list);
+	const vaos = init_vaos(gl, room_list);
 
 	// CAMERA INIT
   	const cam_pos = M.vec3.create();
@@ -387,7 +410,7 @@ function main_init(gl, room_list) {
 
 	return {
 		shaders: shaders,
-		buffers: buffer_data,
+		vaos: vaos,
 		room_list: room_list,
 		cam: cam,
 		tx: tx,
@@ -448,20 +471,20 @@ function pause() {
 function main() {
 	// Setup context
 	const canvas = document.querySelector('#glCanvas');
-	const gl = canvas.getContext('webgl', {antialias: false});
+	const gl = canvas.getContext('webgl2', {antialias: false});
 	if (gl === null) {
-   		alert("Unable to initialize WebGL. Your browser or machine may not support it.");
+   		alert("Unable to initialize WebGL2. Your browser or machine may not support it.");
     	return;
   	}
   	INPUT.init_handlers();
 
   	// ENABLE EXTENSIONS
-  	const ext_drawbuffers = gl.getExtension('WEBGL_draw_buffers');
+  	/*const ext_drawbuffers = gl.getExtension('WEBGL_draw_buffers');
   	if(!ext_drawbuffers) {
   		alert('Unsupported WebGL extension WEBGL_draw_buffers, please try another updated browser (Chrome, Firefox v28).');
   		return;
-  	}
-  	const ext_oesfloat = gl.getExtension('OES_texture_float');
+  	}*/
+  	/*const ext_oesfloat = gl.getExtension('OES_texture_float');
   	if(!ext_oesfloat) {
   		alert('Unsupported WebGL extension OES_texture_float, please try another updated browser (Chrome, Firefox).');
   		return;
@@ -470,17 +493,17 @@ function main() {
   	if(!ext_oesfloat_linear) {
   		alert('Unsupported WebGL extension OES_texture_float_linear, please try another updated browser (Chrome, Firefox).');
   		return;
-  	}
-  	const ext_color_buffer_float = gl.getExtension('WEBGL_color_buffer_float');
-  	if(!ext_oesfloat) {
-  		alert('Unsupported WebGL extension WEBGL_color_buffer_float, please try another updated browser (Chrome, Firefox).');
+  	}*/
+  	const ext_color_buffer_float = gl.getExtension('EXT_color_buffer_float');
+  	if(!ext_color_buffer_float) {
+  		alert('Unsupported WebGL extension EXT_color_buffer_float, please try another updated non-mobile browser (Chrome, Firefox).');
   		return;
   	}
-  	const ext_depth_texture = gl.getExtension('WEBGL_depth_texture');
+  	/*const ext_depth_texture = gl.getExtension('WEBGL_depth_texture');
   	if(!ext_depth_texture) {
   		alert('Unsupported WebGL extension WEBGL_depth_texture, please try another updated browser (Chrome, Firefox).');
   		return;
-  	}
+  	}*/
   	/*const oes_texture_half_float = gl.getExtension('OES_texture_half_float')
   	if(!oes_texture_half_float) {
   		alert('Unsupported WebGL extension OES_texture_half_float, please try another updated browser (Chrome, Firefox).');
@@ -493,8 +516,8 @@ function main() {
   	}*/
   	// EXPOSE EXTENSIONS
   	gl.ext = {
-  		db: ext_drawbuffers,
-  		dt: ext_depth_texture,
+  		//db: ext_drawbuffers,
+  		//dt: ext_depth_texture,
   		//thf: oes_texture_half_float,
   		//hf: ext_color_buffer_half_float,
   	}

@@ -13,6 +13,7 @@ export const spotlight_pass_l = {
         albedo_tex: 'u_albedo_tex',
         rough_metal_tex: 'u_rough_metal_tex',
         shadow_atlas_tex: 'u_shadow_atlas_tex',
+        shadow_atlas_tex_s: 'u_shadow_atlas_tex_s',
 
         shadowmap_dims: 'u_shadowmap_dims',
         blocker_samples: 'u_blocker_samples',
@@ -49,9 +50,8 @@ export function gen_spotlight_pass_f() {
     let pcf_loop = '';
     for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT; i++) {
         pcf_loop += `
-    shadow += texture(u_shadow_atlas_tex, vec3(s_texcoord.xy + u_poisson_samples[${i}]*sample_width*sm_texel, s_texcoord.z), shadow_bias);`;
+    shadow += texture(u_shadow_atlas_tex_s, vec3(s_texcoord.xy + u_poisson_samples[${i}]*sample_width*sm_texel, s_texcoord.z), shadow_bias);`;
     }
-
 
     return `#version 300 es
 precision mediump float;
@@ -65,7 +65,8 @@ uniform sampler2D u_pos_tex;
 uniform sampler2D u_norm_tex;
 uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
-uniform sampler2DShadow u_shadow_atlas_tex;
+uniform sampler2D u_shadow_atlas_tex;
+uniform sampler2DShadow u_shadow_atlas_tex_s;
 
 // shadowmap constants
 const int blocker_sample_count = ${PCSS_BLOCKER_GRID_SIZE}*${PCSS_BLOCKER_GRID_SIZE};
@@ -100,7 +101,7 @@ const float light_size = 10.0;
 // FUNCTION DEFINITIONS
 // SHADOW FUNCTIONS
 float shadowmap_pcf(vec3 s_texcoord, vec2 sm_resolution, float sample_width);
-float pcss_blocker_distance(vec3 s_texcoord, float region_scale);
+vec2 pcss_blocker_distance(vec3 s_texcoord, vec2 sm_resolution, float region_scale);
 float shadowmap_pcss(vec3 s_texcoord, float light_size);
 // PBR FUNCTIONS
 float DistributionGGX(vec3 N, vec3 H, float roughness);
@@ -127,29 +128,49 @@ void main() {
     P_from_light.xyz /= P_from_light.w;
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
-    float shadow_sample = shadowmap_pcf(P_from_light.xyz, u_shadowmap_dims, 10.0);
+    //float shadow_sample = shadowmap_pcf(P_from_light.xyz, u_shadowmap_dims, 10.0);
+    float shadow = shadowmap_pcss(P_from_light.xyz, light_size);
 
-    if(shadow_sample < 0.0001)
+    if(shadow < 0.0001)
         discard;
 
-    o_fragcolor = vec4(I*A*u_light_color*shadow_sample, 1.0);
+    o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
     //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
     //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);
     return;
 }
 
 // SHADOW FUNCTIONS
-float shadowmap_pcf(vec3 s_texcoord, vec2 sm_resolution, float sample_width) {
+float shadowmap_pcf(vec3 s_texcoord, vec2 sm_texel, float sample_width) {
     float shadow = 0.0;
-    vec2 sm_texel = 1.0/sm_resolution;
     ${pcf_loop}
     return shadow/float(poisson_sample_count);
 }
-float pcss_blocker_distance(vec3 s_texcoord, float region_scale) {
-    return 0.0;
+vec2 pcss_blocker_distance(vec3 s_texcoord, vec2 sm_texel, float region_scale) {
+    int blockers = 0;
+    float avg_blocker_depth = 0.0;
+    for (int i=0; i<blocker_sample_count; i++) {
+        vec2 offset = u_blocker_samples[i] * region_scale * sm_texel;
+        //offset = PCSS_Rotate(offset, rotationTrig);
+
+        float blocker_sample = texture(u_shadow_atlas_tex, s_texcoord.xy + offset).x;
+        if (blocker_sample < s_texcoord.z) {
+            blockers++;
+            avg_blocker_depth += blocker_sample;
+        }
+    }
+    float f_blockers = float(blockers);
+    if(blockers > 0) avg_blocker_depth /= f_blockers;
+    return vec2(avg_blocker_depth, f_blockers);
 }
 float shadowmap_pcss(vec3 s_texcoord, float light_size) {
-    return 0.0;    
+    vec2 sm_texel = 1.0/u_shadowmap_dims;
+    vec2 blocker_res = pcss_blocker_distance(s_texcoord, sm_texel, light_size);
+    if(blocker_res.y < 0.9)
+        return 1.0;
+    float penumbra_size = light_size * (s_texcoord.z - blocker_res.x) / blocker_res.x;
+    float shadow = shadowmap_pcf(s_texcoord, sm_texel, penumbra_size);
+    return shadow;
 }
 
 

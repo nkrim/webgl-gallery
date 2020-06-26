@@ -35,7 +35,7 @@ function shadowmap_pass(gl:any, pd:any):void {
 	gl.useProgram(shader.prog);
 
 	// clear constants
-	gl.clearColor(0.0, 0.0, 0.0, 1.0); 
+	gl.clearColor(1.0, 1.0, 1.0, 1.0); 
 	gl.clearDepth(1.0);                
 	gl.enable(gl.DEPTH_TEST);         
 	gl.enable(gl.CULL_FACE);
@@ -264,8 +264,11 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[4]);
 	gl.uniform1i(shader.uniforms.rough_metal_tex, 3);
 	gl.activeTexture(gl.TEXTURE4);	// shadow atlas texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.screen_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 4);
+	gl.activeTexture(gl.TEXTURE5);	// shadow atlas texture (shadow sampler)
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
+	gl.uniform1i(shader.uniforms.shadow_atlas_tex_s, 5);
 
 	// shadowmap uniform set
 	gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.dims);

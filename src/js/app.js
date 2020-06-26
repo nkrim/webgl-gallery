@@ -472,7 +472,6 @@ function gen_poisson_disc_samples(num_samples, k_iters) {
 	const out = [];
 	for(let i=0; i<num_samples; i++)
 		out.push(...samples_vec2[i]);
-	console.log(out);
 	return new Float32Array(out);
 
 }

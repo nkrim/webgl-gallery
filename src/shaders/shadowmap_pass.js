@@ -29,7 +29,7 @@ precision mediump float;
 out vec4 o_fragcolor;
 
 void main() { 
-	o_fragcolor = vec4(1.0,1.0,1.0,1.0); 
+	o_fragcolor = vec4(gl_FragDepth,0.0,0.0,1.0); 
 }
 `
 

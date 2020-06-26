@@ -1,3 +1,7 @@
+// CONSTANTS
+export const PCSS_BLOCKER_GRID_SIZE = 4;
+export const PCSS_POISSON_SAMPLE_SIZE = 16;
+
 // LOCATIONS
 export const spotlight_pass_l = {
     attribs: {
@@ -67,12 +71,15 @@ uniform float u_light_i_angle;
 uniform float u_light_o_angle;
 uniform float u_light_falloff;
 
+// out
+out vec4 o_fragcolor;
+
 // constants
 const float PI = 3.14159265359;
 const float shadow_bias = 0.00001;
 
-// out
-out vec4 o_fragcolor;
+// pcss constants
+const float light_size = 10.0;
 
 
 // pbr functions

@@ -2,7 +2,7 @@ import * as R from '../ts/render.ts';
 import * as ROOM from '../ts/room.ts';
 import { Camera } from '../ts/camera.ts';
 import * as INPUT from '../ts/input.ts';
-import { lerp, interlace_n } from '../ts/utils.ts';
+import { lerp, interlace_n, EPSILON } from '../ts/utils.ts';
 import * as S from '../ts/settings.ts';
 import * as M from './gl-matrix.js';
 import { load_room, room_config } from './room-config.js';
@@ -12,7 +12,8 @@ import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from '../shaders/de
 import { deferred_combine_l, deferred_combine_v, deferred_combine_f } from '../shaders/deferred_combine.js';
 import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../shaders/ssao_pass.js';
 import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
-import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f } from '../shaders/spotlight_pass.js';
+import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f, 
+		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_SIZE } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
 import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders/shadowmap_pass.js';
 
@@ -358,6 +359,98 @@ function gen_ssao_kernel_and_noise(gl, tx_obj) {
 	return sample_data;
 }
 
+/* PCSS SAMPLE GENERATORS
+------------------------- */
+function gen_pcss_blocker_samples(blocker_grid_size) {
+	// init output list
+	const samples = [];
+	// populate samples (random points in unit square [0,1])
+	// develop grid so each sample fits in some grid square, ensuring sufficient surface area
+	const grid_square_size = 1/blocker_grid_size;
+	let r_offset = 0;
+	for(let r=0; r<blocker_grid_size; r++) {
+		let c_offset = 0;
+		for(let c=0; c<blocker_grid_size; c++) {
+			samples.push(
+				(Math.random()*grid_square_size) + c_offest - 0.5,
+				(Math.random()*grid_square_size) + r_offest - 0.5);
+			c_offset += grid_square_size;
+		}
+		r_offset += grid_square_size;
+	}
+	// return array
+	return Float32Array(samples);
+}
+
+// generates poisson disc with R of 1.0, and then scaled down to fit within the range [-0.5,0.5]
+function gen_poisson_disc_samples(num_samples, k_iters) {
+	// init samples list
+	const samples_vec2 = [];
+	for(let i=0; i<num_samples; i++)
+		samples_vec2.push(M.vec2.create());
+	// init queue and back-queue
+	let to_search = [];
+	let next_to_search = [];
+
+	// get starting point
+	M.vec2.set(samples_vec2[0], Math.random(), Math.random());
+	to_search.push(samples_vec2[0]);
+
+	// begin sampling
+	const v = M.vec2.create();
+	const one_eps = 1.0+EPSILON;
+	let i=1;
+	while(i < num_samples) {
+		// search active samples
+		for(let j=0; j<to_search.length; j++) {
+			const p = to_search[j];
+			let valid_sample_found = false;
+
+			// attempt sampling
+			const seed = Math.random();
+			for(let k=0; k<k_iters; k++) {
+				const theta = 2*Math.PI*(seed + k/k_iters);
+				M.vec2.set(v, 
+					p[0] + one_eps*Math.cos(theta),
+					p[1] + one_eps*Math.sin(theta));
+
+				// check validity of sample
+				let valid_sample = true;
+				for(let s=0; valid_sample&&s<i; s++) {
+					if(M.vec2.sqrDist(v, samples_vec2[s]) < 1)
+						valid_sample = false;
+				}
+				if(valid_sample) {
+					valid_sample_found = true;
+					M.vec2.copy(samples_vec2[i], v);
+					to_search.push(samples_vec2[i]);
+					i++;
+					if(i >= num_samples)
+						break;
+				}
+				// one may continue sampling around this point until k_iters is exhausted
+			}
+
+			// if valid sample found, add to next_to_search
+			if(valid_sample_found) {
+				if(i >= num_samples) // exit if number of samples is complete
+					break;
+				next_to_search.push(p);
+			}
+		}
+		// once to_search is exhausted, swap with next_to_search
+		to_search = next_to_search;
+		next_to_search = [];
+	}
+
+	// construct output array
+	const out = [];
+	for(let i=0; i<num_samples; i++)
+		out.push(...samples_vec2[i]);
+	return new Float32Array(out);
+
+}
+
 
 /* MAIN INITIALIZATION
 ====================== */
@@ -407,7 +500,24 @@ function main_init(gl, room_list) {
 	};
 
   	// SSAO DATA INIT
-  	const sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
+  	const ssao_sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
+
+  	// POISSON DISC SAMPLES
+  	const pcss_poisson_sample_kernel = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_SIZE, 8);
+  	// DEBUG
+  	{
+  		const canvas = document.querySelector('#testCanvas');
+  		const ctx = canvas.getContext('2d');
+  		const scale = 10;
+  		for(let i=0; i<PCSS_POISSON_SAMPLE_SIZE*2; i+=2) {
+  			ctx.beginPath();
+  			ctx.arc(
+  				pcss_poisson_sample_kernel[i]*scale + canvas.clientWidth/2, 
+  				pcss_poisson_sample_kernel[i+1]*scale + canvas.clientHeight/2, 
+  				0.5*scale, 0, 2*Math.PI);
+  			ctx.stroke();
+  		}
+  	}
 
 	return {
 		shaders: shaders,
@@ -416,7 +526,7 @@ function main_init(gl, room_list) {
 		cam: cam,
 		tx: tx,
 		fb: fb_obj,
-		ssao_kernel: sample_kernel,
+		ssao_kernel: ssao_sample_kernel,
 		settings: settings_obj,
 	}
 }

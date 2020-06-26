@@ -1,6 +1,6 @@
 // CONSTANTS
 export const PCSS_BLOCKER_GRID_SIZE = 4;
-export const PCSS_POISSON_SAMPLE_SIZE = 16;
+export const PCSS_POISSON_SAMPLE_COUNT = 32;
 
 // LOCATIONS
 export const spotlight_pass_l = {
@@ -15,6 +15,8 @@ export const spotlight_pass_l = {
         shadow_atlas_tex: 'u_shadow_atlas_tex',
 
         shadowmap_dims: 'u_shadowmap_dims',
+        blocker_samples: 'u_blocker_samples',
+        poisson_samples: 'u_poisson_samples',
 
         camera_view_to_light_screen: 'u_camera_view_to_light_screen',
 
@@ -42,7 +44,16 @@ void main() {
 `;
 
 // FRAGMENT SHADER
-export const spotlight_pass_f = `#version 300 es
+export function gen_spotlight_pass_f() { 
+    // generate pcf loop
+    let pcf_loop = '';
+    for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT; i++) {
+        pcf_loop += `
+    shadow += texture(u_shadow_atlas_tex, vec3(s_texcoord.xy + u_poisson_samples[${i}]*sample_width*sm_texel, s_texcoord.z), shadow_bias);`;
+    }
+
+
+    return `#version 300 es
 precision mediump float;
 precision mediump sampler2DShadow;
 
@@ -56,8 +67,13 @@ uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
 uniform sampler2DShadow u_shadow_atlas_tex;
 
+// shadowmap constants
+const int blocker_sample_count = ${PCSS_BLOCKER_GRID_SIZE}*${PCSS_BLOCKER_GRID_SIZE};
+const int poisson_sample_count = ${PCSS_POISSON_SAMPLE_COUNT};
 // shadowmap uniform
 uniform vec2 u_shadowmap_dims;
+uniform vec2 u_blocker_samples[blocker_sample_count];
+uniform vec2 u_poisson_samples[poisson_sample_count];
 
 // matrix uniforms
 uniform mat4 u_camera_view_to_light_screen;
@@ -81,41 +97,15 @@ const float shadow_bias = 0.00001;
 // pcss constants
 const float light_size = 10.0;
 
-
-// pbr functions
-// source: https://learnopengl.com/PBR/Lighting
-float DistributionGGX(vec3 N, vec3 H, float roughness)
-{
-    float a      = roughness*roughness;
-    float a2     = a*a;
-    float NdotH  = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH*NdotH;
-	
-    float num   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-	
-    return num / denom;
-}
-float GeometrySchlickGGX(float NdotV, float roughness)
-{
-    float r = (roughness + 1.0);
-    float k = (r*r) / 8.0;
-
-    float num   = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-	
-    return num / denom;
-}
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
-{
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2  = GeometrySchlickGGX(NdotV, roughness);
-    float ggx1  = GeometrySchlickGGX(NdotL, roughness);
-	
-    return ggx1 * ggx2;
-}
+// FUNCTION DEFINITIONS
+// SHADOW FUNCTIONS
+float shadowmap_pcf(vec3 s_texcoord, vec2 sm_resolution, float sample_width);
+float pcss_blocker_distance(vec3 s_texcoord, float region_scale);
+float shadowmap_pcss(vec3 s_texcoord, float light_size);
+// PBR FUNCTIONS
+float DistributionGGX(vec3 N, vec3 H, float roughness);
+float GeometrySchlickGGX(float NdotV, float roughness);
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 
 void main() {
 	// grab texture values
@@ -137,29 +127,30 @@ void main() {
     P_from_light.xyz /= P_from_light.w;
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
-    //float shadow_sample = texture(u_shadow_atlas_tex, P_from_light.xyz, shadow_bias);
-    /*if(P_from_light.z > depth_sample + shadow_bias)
-        discard;*/
+    float shadow_sample = shadowmap_pcf(P_from_light.xyz, u_shadowmap_dims, 50.0);
 
-    // PCF sampling (nvidia 4 sample approach)
-    vec2 offset = fract(P_from_light.xy * 0.5);
-    offset.x = float(offset.x > 0.25); offset.y = float(offset.y > 0.25);
-    offset.y += offset.x;
-    if(offset.y > 1.1) offset.y = 0.0;
-    float shadow_coeff =  (
-            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(-1.5, 0.5))/u_shadowmap_dims, 0.0)) + 
-            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(0.5, 0.5))/u_shadowmap_dims, 0.0)) +
-            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(-1.5, -1.5))/u_shadowmap_dims, 0.0)) +
-            texture(u_shadow_atlas_tex, P_from_light.xyz + vec3((offset + vec2(0.5, -1.5))/u_shadowmap_dims, 0.0)) 
-        ) * 0.25; 
-
-    if(shadow_coeff < 0.0001)
+    if(shadow_sample < 0.0001)
         discard;
 
-    o_fragcolor = vec4(I*A*u_light_color*shadow_coeff, 1.0);
+    o_fragcolor = vec4(I*A*u_light_color*shadow_sample, 1.0);
     //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
     //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);
     return;
+}
+
+// SHADOW FUNCTIONS
+float shadowmap_pcf(vec3 s_texcoord, vec2 sm_resolution, float sample_width) {
+    float shadow = 0.0;
+    vec2 sm_texel = 1.0/sm_resolution;
+    ${pcf_loop}
+    return shadow/float(poisson_sample_count);
+}
+float pcss_blocker_distance(vec3 s_texcoord, float region_scale) {
+    return 0.0;
+}
+float shadowmap_pcss(vec3 s_texcoord, float light_size) {
+    return 0.0;    
+}
 
 
 
@@ -167,21 +158,20 @@ void main() {
 
 
 
-
-
-
-
-    /*float I = 
+/*float I = 
         step(0.0, dot(N, -l_to_p))
         * step(u_light_o_angle-0.0001, cos_angle) 
         * pow(
-    		  (cos_angle - u_light_o_angle) 
-    		/ (u_light_i_angle - u_light_o_angle)
-		    , u_light_falloff);*/
+              (cos_angle - u_light_o_angle) 
+            / (u_light_i_angle - u_light_o_angle)
+            , u_light_falloff);*/
 
 
 
-	/*
+    /*
+// PBR stuff for later
+/*void main_extra() {
+    
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, A, RM[1]);
 	           
@@ -211,9 +201,43 @@ void main() {
     // add to outgoing radiance Lo
     float NdotL = max(dot(N, L), 0.0);                
     Lo += (kD * albedo / PI + specular) * radiance * NdotL;
-    */
     
     o_fragcolor = vec4(I*u_light_color*A, 1.0);
+}*/
+
+// pbr functions
+// source: https://learnopengl.com/PBR/Lighting
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a      = roughness*roughness;
+    float a2     = a*a;
+    float NdotH  = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+    
+    float num   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    
+    return num / denom;
+}
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+
+    float num   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    
+    return num / denom;
+}
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2  = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1  = GeometrySchlickGGX(NdotL, roughness);
+    
+    return ggx1 * ggx2;
 }
 
-`;
+`};

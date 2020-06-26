@@ -10,7 +10,7 @@ const pitch_speed:number = 1.5;
 const yaw_speed:number = 1.5;
 
 /* KEYLIST HANDLERS */
-const key_prevent_default:Set<number> = new Set([38,40,37,39]);
+const key_prevent_default:Set<number> = new Set([32,38,40,37,39]);
 const key_set:Set<number> = new Set();
 export function init_handlers():void {
 	window.addEventListener("keydown",

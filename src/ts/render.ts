@@ -27,6 +27,9 @@ function shadowmap_pass(gl:any, pd:any):void {
 	// bind fb
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.shadowmap_pass);
 
+	// set viewport
+	gl.viewport(0, 0, 480, 480);
+
 	// use shader
 	const shader = pd.shaders.shadowmap_pass;
 	gl.useProgram(shader.prog);
@@ -65,7 +68,8 @@ function shadowmap_pass(gl:any, pd:any):void {
 		gl.bindVertexArray(null);
 	}
 
-
+	// reset viewport
+	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
 }
 
 /* GBUFFER PASS FOR DEFERRED SHADING
@@ -264,7 +268,9 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 4);
 
 	// shadowmap uniform set
-	gl.uniform2f(shader.uniforms.shadowmap_dims, gl.canvas.clientWidth, gl.canvas.clientHeight);
+	gl.uniform2f(shader.uniforms.shadowmap_dims, 480, 480); // HARDCODED 480X480
+	gl.uniform2fv(shader.uniforms.poisson_samples, pd.poisson_samples);
+	gl.uniform2fv(shader.uniforms.blocker_samples, pd.blocker_samples);
 
 	// matrix uniform set
 	const view_m:mat4 = pd.cam.get_view_matrix();

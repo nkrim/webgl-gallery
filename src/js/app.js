@@ -12,8 +12,8 @@ import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from '../shaders/de
 import { deferred_combine_l, deferred_combine_v, deferred_combine_f } from '../shaders/deferred_combine.js';
 import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../shaders/ssao_pass.js';
 import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
-import { spotlight_pass_l, spotlight_pass_v, spotlight_pass_f, 
-		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_SIZE } from '../shaders/spotlight_pass.js';
+import { spotlight_pass_l, spotlight_pass_v, gen_spotlight_pass_f, 
+		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_COUNT } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
 import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders/shadowmap_pass.js';
 
@@ -219,7 +219,9 @@ function init_textures(gl) {
 	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
-	tx_obj.shadow_atlas = gen_screen_depth_texture(gl, gl.LINEAR);
+	const shadow_atlas_dims = M.vec2.create(); M.vec2.set(shadow_atlas_dims, 480, 480);
+	tx_obj.shadow_atlas = gen_screen_depth_texture(gl, gl.LINEAR, shadow_atlas_dims);
+	tx_obj.shadow_screen = gen_screen_color_texture(gl, gl.LINEAR, shadow_atlas_dims);
 	// light accumulation buffer
 	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
 	// screen write texture
@@ -469,6 +471,7 @@ function gen_poisson_disc_samples(num_samples, k_iters) {
 	const out = [];
 	for(let i=0; i<num_samples; i++)
 		out.push(...samples_vec2[i]);
+	console.log(out);
 	return new Float32Array(out);
 
 }
@@ -489,7 +492,7 @@ function main_init(gl, room_list) {
 								gen_ssao_pass_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_pass_l),
 		ssao_blur: 			init_shader_program(gl, ssao_blur_v, 
 								gen_ssao_blur_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_blur_l),
-		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, spotlight_pass_f, spotlight_pass_l),
+		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, gen_spotlight_pass_f(), spotlight_pass_l),
 		fxaa_pass_variants: [
 				init_shader_program(gl, fxaa_pass_v, 
 					gen_fxaa_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight, FXAA_QUALITY_SETTINGS[0]), 
@@ -513,7 +516,7 @@ function main_init(gl, room_list) {
 
   	// FRAMEBUFFER INIT
   	const fb_obj = {
-  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas, tx.screen_tex/*temp*/),
+  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas, tx.shadow_screen/*temp*/),
 		deferred: 			init_deferred_framebuffer(gl, tx),
 		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
 		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
@@ -527,7 +530,7 @@ function main_init(gl, room_list) {
   	// PCSS BLOCKER SEARCH GRID
   	const pcss_blocker_samples = gen_pcss_blocker_samples(PCSS_BLOCKER_GRID_SIZE);
   	// DEBUG
-  	if(true) {
+  	/*if(true) {
   		const canvas = document.querySelector('#blockerCanvas');
   		canvas.style.display = '';
   		const ctx = canvas.getContext('2d');
@@ -540,17 +543,17 @@ function main_init(gl, room_list) {
   				0.25*scale/PCSS_BLOCKER_GRID_SIZE, 0, 2*Math.PI);
   			ctx.stroke();
   		}
-  	}
+  	}*/
 
   	// POISSON DISC SAMPLES
-  	const pcss_poisson_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_SIZE, PCSS_POISSON_SAMPLE_SIZE/2);
+  	const pcss_poisson_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2);
   	// DEBUG
   	if(true) {
   		const canvas = document.querySelector('#poissonCanvas');
   		canvas.style.display = '';
   		const ctx = canvas.getContext('2d');
   		const scale = 100;
-  		for(let i=0; i<PCSS_POISSON_SAMPLE_SIZE*2; i+=2) {
+  		for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT*2; i+=2) {
   			ctx.beginPath();
   			ctx.arc(
   				pcss_poisson_samples[i]*scale + canvas.clientWidth/2, 
@@ -568,6 +571,8 @@ function main_init(gl, room_list) {
 		tx: tx,
 		fb: fb_obj,
 		ssao_kernel: ssao_sample_kernel,
+		blocker_samples: pcss_blocker_samples,
+		poisson_samples: pcss_poisson_samples,
 		settings: settings_obj,
 	}
 }

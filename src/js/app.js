@@ -425,7 +425,7 @@ function gen_poisson_disc_samples(num_samples, k_iters) {
 					M.vec2.copy(samples_vec2[i], v);
 					to_search.push(samples_vec2[i]);
 					i++;
-					//if(i >= num_samples)
+					if(i >= num_samples)
 						break;
 				}
 				// one may continue sampling around this point until k_iters is exhausted

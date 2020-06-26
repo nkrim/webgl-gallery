@@ -219,9 +219,10 @@ function init_textures(gl) {
 	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
-	const shadow_atlas_dims = M.vec2.create(); M.vec2.set(shadow_atlas_dims, 480, 480);
-	tx_obj.shadow_atlas = gen_screen_depth_texture(gl, gl.LINEAR, shadow_atlas_dims);
-	tx_obj.shadow_screen = gen_screen_color_texture(gl, gl.LINEAR, shadow_atlas_dims);
+	tx_obj.shadow_atlas = {};
+	tx_obj.shadow_atlas.dims = M.vec2.create(); M.vec2.set(tx_obj.shadow_atlas.dims, 960, 960);
+	tx_obj.shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
+	tx_obj.shadow_atlas.screen_tex = gen_screen_color_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
 	// light accumulation buffer
 	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
 	// screen write texture
@@ -516,7 +517,7 @@ function main_init(gl, room_list) {
 
   	// FRAMEBUFFER INIT
   	const fb_obj = {
-  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas, tx.shadow_screen/*temp*/),
+  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas.depth_tex, tx.shadow_atlas.screen_tex),
 		deferred: 			init_deferred_framebuffer(gl, tx),
 		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
 		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
@@ -530,7 +531,7 @@ function main_init(gl, room_list) {
   	// PCSS BLOCKER SEARCH GRID
   	const pcss_blocker_samples = gen_pcss_blocker_samples(PCSS_BLOCKER_GRID_SIZE);
   	// DEBUG
-  	/*if(true) {
+  	if(true) {
   		const canvas = document.querySelector('#blockerCanvas');
   		canvas.style.display = '';
   		const ctx = canvas.getContext('2d');
@@ -543,7 +544,7 @@ function main_init(gl, room_list) {
   				0.25*scale/PCSS_BLOCKER_GRID_SIZE, 0, 2*Math.PI);
   			ctx.stroke();
   		}
-  	}*/
+  	}
 
   	// POISSON DISC SAMPLES
   	const pcss_poisson_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2);

@@ -127,7 +127,7 @@ void main() {
     P_from_light.xyz /= P_from_light.w;
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
-    float shadow_sample = shadowmap_pcf(P_from_light.xyz, u_shadowmap_dims, 50.0);
+    float shadow_sample = shadowmap_pcf(P_from_light.xyz, u_shadowmap_dims, 10.0);
 
     if(shadow_sample < 0.0001)
         discard;

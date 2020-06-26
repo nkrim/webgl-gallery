@@ -28,7 +28,7 @@ function shadowmap_pass(gl:any, pd:any):void {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.shadowmap_pass);
 
 	// set viewport
-	gl.viewport(0, 0, 480, 480);
+	gl.viewport(0, 0, pd.tx.shadow_atlas.dims[0], pd.tx.shadow_atlas.dims[1]);
 
 	// use shader
 	const shader = pd.shaders.shadowmap_pass;
@@ -264,11 +264,11 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[4]);
 	gl.uniform1i(shader.uniforms.rough_metal_tex, 3);
 	gl.activeTexture(gl.TEXTURE4);	// shadow atlas texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 4);
 
 	// shadowmap uniform set
-	gl.uniform2f(shader.uniforms.shadowmap_dims, 480, 480); // HARDCODED 480X480
+	gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.dims);
 	gl.uniform2fv(shader.uniforms.poisson_samples, pd.poisson_samples);
 	gl.uniform2fv(shader.uniforms.blocker_samples, pd.blocker_samples);
 

@@ -36,6 +36,6 @@ export class Spotlight {
 
 		// construct properties
 		this.proj_m = M.mat4.create();
-		M.mat4.perspective(this.proj_m, this.o_angle, 1.0, 0.1, 30.0); // !!!!!!MEGA TEMPORARY
+		M.mat4.perspective(this.proj_m, this.o_angle, 1.0, 0.1, 100.0); // !!!!!!MEGA TEMPORARY
 	}
 }

@@ -372,14 +372,14 @@ function gen_pcss_blocker_samples(blocker_grid_size) {
 		let c_offset = 0;
 		for(let c=0; c<blocker_grid_size; c++) {
 			samples.push(
-				(Math.random()*grid_square_size) + c_offest - 0.5,
-				(Math.random()*grid_square_size) + r_offest - 0.5);
+				(Math.random()*grid_square_size) + c_offset - 0.5,
+				(Math.random()*grid_square_size) + r_offset - 0.5);
 			c_offset += grid_square_size;
 		}
 		r_offset += grid_square_size;
 	}
 	// return array
-	return Float32Array(samples);
+	return new Float32Array(samples);
 }
 
 // generates poisson disc with R of 1.0, and then scaled down to fit within the range [-0.5,0.5]
@@ -502,18 +502,37 @@ function main_init(gl, room_list) {
   	// SSAO DATA INIT
   	const ssao_sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
 
-  	// POISSON DISC SAMPLES
-  	const pcss_poisson_sample_kernel = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_SIZE, 8);
+  	// PCSS BLOCKER SEARCH GRID
+  	const pcss_blocker_samples = gen_pcss_blocker_samples(PCSS_BLOCKER_GRID_SIZE);
   	// DEBUG
-  	{
-  		const canvas = document.querySelector('#testCanvas');
+  	if(true) {
+  		const canvas = document.querySelector('#blockerCanvas');
+  		canvas.style.display = '';
+  		const ctx = canvas.getContext('2d');
+  		const scale = 100;
+  		for(let i=0; i<pcss_blocker_samples.length; i+=2) {
+  			ctx.beginPath();
+  			ctx.arc(
+  				pcss_blocker_samples[i]*scale + canvas.clientWidth/2, 
+  				pcss_blocker_samples[i+1]*scale + canvas.clientHeight/2, 
+  				0.25*scale/PCSS_BLOCKER_GRID_SIZE, 0, 2*Math.PI);
+  			ctx.stroke();
+  		}
+  	}
+
+  	// POISSON DISC SAMPLES
+  	const pcss_poisson_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_SIZE, PCSS_POISSON_SAMPLE_SIZE/2);
+  	// DEBUG
+  	if(true) {
+  		const canvas = document.querySelector('#poissonCanvas');
+  		canvas.style.display = '';
   		const ctx = canvas.getContext('2d');
   		const scale = 10;
   		for(let i=0; i<PCSS_POISSON_SAMPLE_SIZE*2; i+=2) {
   			ctx.beginPath();
   			ctx.arc(
-  				pcss_poisson_sample_kernel[i]*scale + canvas.clientWidth/2, 
-  				pcss_poisson_sample_kernel[i+1]*scale + canvas.clientHeight/2, 
+  				pcss_poisson_samples[i]*scale + canvas.clientWidth/2, 
+  				pcss_poisson_samples[i+1]*scale + canvas.clientHeight/2, 
   				0.5*scale, 0, 2*Math.PI);
   			ctx.stroke();
   		}

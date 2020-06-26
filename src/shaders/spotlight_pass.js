@@ -1,6 +1,6 @@
 // CONSTANTS
 export const PCSS_BLOCKER_GRID_SIZE = 4;
-export const PCSS_POISSON_SAMPLE_SIZE = 16;
+export const PCSS_POISSON_SAMPLE_SIZE = 32;
 
 // LOCATIONS
 export const spotlight_pass_l = {

@@ -425,7 +425,7 @@ function gen_poisson_disc_samples(num_samples, k_iters) {
 					M.vec2.copy(samples_vec2[i], v);
 					to_search.push(samples_vec2[i]);
 					i++;
-					if(i >= num_samples)
+					//if(i >= num_samples)
 						break;
 				}
 				// one may continue sampling around this point until k_iters is exhausted
@@ -441,6 +441,28 @@ function gen_poisson_disc_samples(num_samples, k_iters) {
 		// once to_search is exhausted, swap with next_to_search
 		to_search = next_to_search;
 		next_to_search = [];
+	}
+
+	// scale samples to [-0.5,0.5] range
+	// find min/max values
+	let min_x = samples_vec2[0][0]; let max_x = min_x;
+	let min_y = samples_vec2[0][1]; let max_y = min_y;
+	for(let i=1; i<num_samples; i++) {
+		const s = samples_vec2[i];
+		if(s[0] < min_x)		min_x = s[0];
+		else if(s[0] > max_x) 	max_x = s[0];
+		if(s[1] < min_y)		min_y = s[1];
+		else if(s[1] > max_y) 	max_y = s[1];
+	}
+	const min_vec = M.vec2.create(); M.vec2.set(min_vec, min_x, min_y);
+	const scale = 1/Math.max(max_x - min_x, max_y - min_y);
+	const center_vec = M.vec2.create(); M.vec2.set(center_vec, 0.5, 0.5);
+	// scale outputs
+	for(let i=0; i<num_samples; i++) {
+		const s = samples_vec2[i];
+		M.vec2.sub(s, s, min_vec);
+		M.vec2.scale(s, s, scale);
+		M.vec2.sub(s, s, center_vec);
 	}
 
 	// construct output array
@@ -527,13 +549,13 @@ function main_init(gl, room_list) {
   		const canvas = document.querySelector('#poissonCanvas');
   		canvas.style.display = '';
   		const ctx = canvas.getContext('2d');
-  		const scale = 10;
+  		const scale = 100;
   		for(let i=0; i<PCSS_POISSON_SAMPLE_SIZE*2; i+=2) {
   			ctx.beginPath();
   			ctx.arc(
   				pcss_poisson_samples[i]*scale + canvas.clientWidth/2, 
   				pcss_poisson_samples[i+1]*scale + canvas.clientHeight/2, 
-  				0.5*scale, 0, 2*Math.PI);
+  				0.05*scale, 0, 2*Math.PI);
   			ctx.stroke();
   		}
   	}

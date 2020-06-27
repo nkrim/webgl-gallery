@@ -52,7 +52,7 @@ export function gen_spotlight_pass_f() {
     let pcf_loop = '';
     for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT; i++) {
         pcf_loop += `
-    shadow += texture(u_shadow_atlas_tex, vec3(s_projcoord.xy + u_poisson_samples[${i}]*sample_width*sm_texel, s_projcoord.z), shadow_bias);`;
+    shadow += texture(u_shadow_atlas_tex, vec3(s_projcoord.xy + u_poisson_samples[${i}]*sample_width*sm_texel, s_projcoord.z+shadow_bias));`;
     }
 
     return `#version 300 es
@@ -91,13 +91,14 @@ uniform float u_light_o_angle;
 uniform float u_light_falloff;
 uniform float u_light_znear;
 uniform float u_light_zfar;
+//uniform float u_light_fov;
 
 // out
 out vec4 o_fragcolor;
 
 // constants
 const float PI = 3.14159265359;
-const float shadow_bias = 0.00001;
+const float shadow_bias = 0.0001;
 
 // pcss constants
 const float light_size = 10.0;

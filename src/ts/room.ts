@@ -11,6 +11,7 @@ export class Room {
 	// MESH - vertices
 	wall_paths:			Array<Array<number>>; // CCW ORDER
 	wall_height:		number;
+	wall_bias:			number;
 	floor_indices:		Array<number>;
 	room_scale: 		number;
 	// MESH - material
@@ -45,6 +46,7 @@ export class Room {
 	constructor(
 			wall_paths:			Array<Array<number>>, 
 			wall_height:		number,
+			wall_bias:			number,
 			floor_indices:  	Array<number>,
 			room_scale: 		number,
 
@@ -63,6 +65,7 @@ export class Room {
 		// Mesh
 		this.wall_paths = wall_paths;
 		this.wall_height = wall_height;
+		this.wall_bias = wall_bias;
 		this.floor_indices = floor_indices;
 		this.room_scale = room_scale;
 		// copy colors (with gamma correction) and rough/metal
@@ -120,13 +123,13 @@ export class Room {
 			const v_normal:vec3 		= M.vec3.create();
 			const v_height_add:vec3 	= M.vec3.create();
 			// Init prev points and starting values
-			M.vec3.set(v_height_add, 0, this.wall_height, 0);
-			M.vec3.set(v_prev_l, path[0]*this.room_scale, 0, path[1]*this.room_scale);
+			M.vec3.set(v_height_add, 0, this.wall_height + 2*this.wall_bias, 0);
+			M.vec3.set(v_prev_l, path[0]*this.room_scale, -this.wall_bias, path[1]*this.room_scale);
 			M.vec3.add(v_prev_u, v_prev_l, v_height_add);
 			// Build path
 			for(let i=2; i<path.length; i+=2) {
 				// set cur vectors
-				M.vec3.set(v_cur_l, path[i]*this.room_scale, 0, path[i+1]*this.room_scale);
+				M.vec3.set(v_cur_l, path[i]*this.room_scale, -this.wall_bias, path[i+1]*this.room_scale);
 				M.vec3.add(v_cur_u, v_cur_l, v_height_add);
 				// push vertices and indices
 				this.mesh_vertices.push(...v_prev_u, ...v_cur_u, ...v_cur_l, ...v_prev_l);

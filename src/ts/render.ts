@@ -55,6 +55,10 @@ function shadowmap_pass(gl:any, pd:any):void {
 		const mv_m:mat4 = light.cam.get_view_matrix();
 		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
 
+		// set light uniforms
+		gl.uniform1f(shader.uniforms.znear, light.zplanes[0]);
+		gl.uniform1f(shader.uniforms.zfar, light.zplanes[1]);
+
 		// BIND VAO
 		gl.bindVertexArray(pd.vaos.room);
 		// DRAW
@@ -265,10 +269,10 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.uniform1i(shader.uniforms.rough_metal_tex, 3);
 	gl.activeTexture(gl.TEXTURE4);	// shadow atlas texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.screen_tex);
-	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 4);
+	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 4);
 	gl.activeTexture(gl.TEXTURE5);	// shadow atlas texture (shadow sampler)
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
-	gl.uniform1i(shader.uniforms.shadow_atlas_tex_s, 5);
+	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 5);
 
 	// shadowmap uniform set
 	gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.dims);
@@ -292,12 +296,15 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	const light_dir = light.cam.get_look_dir();
 	M.vec4.set(v4, light_dir[0], light_dir[1], light_dir[2], 0);
 	M.vec4.transformMat4(v4, v4, view_m);
+
 	gl.uniform3f(shader.uniforms.light_dir, v4[0], v4[1], v4[2]);
 	gl.uniform3fv(shader.uniforms.light_color, light.color);
 	gl.uniform1f(shader.uniforms.light_int, light.intensity);
 	gl.uniform1f(shader.uniforms.light_i_angle, light.i_angle);
 	gl.uniform1f(shader.uniforms.light_o_angle, light.o_angle);
 	gl.uniform1f(shader.uniforms.light_falloff, light.falloff);
+	gl.uniform1f(shader.uniforms.light_znear, light.zplanes[0]);
+	gl.uniform1f(shader.uniforms.light_zfar, light.zplanes[1]);
 
 	// bind vao
 	gl.bindVertexArray(pd.vaos.quad);

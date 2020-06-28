@@ -27,9 +27,8 @@ export class Camera {
 		this._old_pitch = pitch;
 		this._old_yaw = yaw;
 		this._view_matrix = M.mat4.create();
-		this.get_view_matrix(true);
 		this._look_dir = M.vec3.create();
-		this.get_look_dir(true);
+		this._update_values(true);
 	}
 
 	same_old_values(): boolean {
@@ -50,27 +49,30 @@ export class Camera {
 		return false;
 	}
 
-	get_view_matrix(force:boolean = false): mat4 {
+	_update_values(force:boolean = false):boolean {
 		if(!force && this.same_old_values()) {
-			return this._view_matrix;
+			return false;
 		}
+		// view matrix
 		const q:quat = M.quat.create();
 		M.quat.rotateY(q, q, this.yaw);
 		M.quat.rotateX(q, q, this.pitch);
 		M.mat4.fromRotationTranslation(this._view_matrix, q, this.pos);
 		M.mat4.invert(this._view_matrix, this._view_matrix);
+		// look dir
+		M.vec3.set(this._look_dir, 0, 0, -1);
+		M.vec3.transformQuat(this._look_dir, this._look_dir, q);
+		// return
+		return true;
+	}
+
+	get_view_matrix(force:boolean = false): mat4 {
+		this._update_values(force);
 		return this._view_matrix;
 	}
 
 	get_look_dir(force:boolean = false): vec3 {
-		if(!force && this.same_old_values()){
-			return this._look_dir;
-		}
-		const q:quat = M.quat.create();
-		M.quat.rotateY(q, q, this.yaw);
-		M.quat.rotateX(q, q, this.pitch);
-		M.vec3.set(this._look_dir, 0, 0, -1);
-		M.vec3.transformQuat(this._look_dir, this._look_dir, q);
+		this._update_values(force);
 		return this._look_dir;
 	}
 }

@@ -530,7 +530,7 @@ function main_init(gl, room_list) {
   	// PCSS BLOCKER SEARCH GRID
   	const pcss_blocker_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2);//gen_pcss_blocker_samples(PCSS_BLOCKER_GRID_SIZE);
   	// DEBUG
-  	if(true) {
+  	/*if(true) {
   		const canvas = document.querySelector('#blockerCanvas');
   		canvas.style.display = '';
   		const ctx = canvas.getContext('2d');
@@ -543,12 +543,12 @@ function main_init(gl, room_list) {
   				0.25*scale/PCSS_BLOCKER_GRID_SIZE, 0, 2*Math.PI);
   			ctx.stroke();
   		}
-  	}
+  	}*/
 
   	// POISSON DISC SAMPLES
   	const pcss_poisson_samples = gen_poisson_disc_samples(PCF_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT/2);
   	// DEBUG
-  	if(true) {
+  	/*if(true) {
   		const canvas = document.querySelector('#poissonCanvas');
   		canvas.style.display = '';
   		const ctx = canvas.getContext('2d');
@@ -561,7 +561,7 @@ function main_init(gl, room_list) {
   				0.05*scale, 0, 2*Math.PI);
   			ctx.stroke();
   		}
-  	}
+  	}*/
 
 	return {
 		shaders: shaders,

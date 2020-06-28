@@ -105,7 +105,7 @@ const float PI = 3.14159265359;
 const float shadow_bias = 0.0001;
 
 // pcss constants
-const float light_size = 100.0;
+const float light_size = 20.0;
 
 // FUNCTION DEFINITIONS
 // ====================
@@ -140,10 +140,11 @@ void main() {
 	// spotlight intensity value
 	vec3 l_to_p = normalize(P - u_light_pos);
     float cos_angle = dot(l_to_p, u_light_dir);
-    if(dot(N, -l_to_p) < 0.0 || cos_angle < u_light_o_angle-0.0001) {
+    float norm_dot = dot(N, -l_to_p);
+    if(norm_dot < 0.0 || cos_angle < u_light_o_angle-0.0001) {
         discard;
     }
-	float I = u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
+	float I = norm_dot * u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
 
     // shadow map test
     vec4 P_from_light_view = u_camera_view_to_light_view * vec4(P, 1.0);

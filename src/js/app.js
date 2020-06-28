@@ -13,7 +13,7 @@ import { deferred_combine_l, deferred_combine_v, deferred_combine_f } from '../s
 import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../shaders/ssao_pass.js';
 import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
 import { spotlight_pass_l, spotlight_pass_v, gen_spotlight_pass_f, 
-		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_COUNT } from '../shaders/spotlight_pass.js';
+		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
 import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders/shadowmap_pass.js';
 
@@ -220,7 +220,7 @@ function init_textures(gl) {
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
 	tx_obj.shadow_atlas = {};
-	tx_obj.shadow_atlas.dims = M.vec2.create(); M.vec2.set(tx_obj.shadow_atlas.dims, 960, 960);
+	tx_obj.shadow_atlas.dims = M.vec2.create(); M.vec2.set(tx_obj.shadow_atlas.dims, gl.canvas.clientHeight*2, gl.canvas.clientHeight*2);
 	tx_obj.shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
 	tx_obj.shadow_atlas.screen_tex = gen_screen_color_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
 	// light accumulation buffer
@@ -528,7 +528,7 @@ function main_init(gl, room_list) {
   	const ssao_sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
 
   	// PCSS BLOCKER SEARCH GRID
-  	const pcss_blocker_samples = gen_pcss_blocker_samples(PCSS_BLOCKER_GRID_SIZE);
+  	const pcss_blocker_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2);//gen_pcss_blocker_samples(PCSS_BLOCKER_GRID_SIZE);
   	// DEBUG
   	if(true) {
   		const canvas = document.querySelector('#blockerCanvas');
@@ -546,7 +546,7 @@ function main_init(gl, room_list) {
   	}
 
   	// POISSON DISC SAMPLES
-  	const pcss_poisson_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2);
+  	const pcss_poisson_samples = gen_poisson_disc_samples(PCF_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT/2);
   	// DEBUG
   	if(true) {
   		const canvas = document.querySelector('#poissonCanvas');

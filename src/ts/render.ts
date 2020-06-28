@@ -283,10 +283,10 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	const view_m:mat4 = pd.cam.get_view_matrix();
 	const inv_view_m:mat4 = M.mat4.create();
 	M.mat4.invert(inv_view_m, view_m);
-	const c_view_to_l_screen:mat4 = M.mat4.create();
-	M.mat4.mul(c_view_to_l_screen, light.cam.get_view_matrix(), inv_view_m);
-	M.mat4.mul(c_view_to_l_screen, light.proj_m, c_view_to_l_screen);
-	gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_screen, false, c_view_to_l_screen);
+	const c_view_to_l_view:mat4 = M.mat4.create();
+	M.mat4.mul(c_view_to_l_view, light.cam.get_view_matrix(), inv_view_m);
+	gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_view, false, c_view_to_l_view);
+	gl.uniformMatrix4fv(shader.uniforms.light_proj, false, light.proj_m);
 
 	// light uniform set
 	const v4:vec4 = M.vec4.create();

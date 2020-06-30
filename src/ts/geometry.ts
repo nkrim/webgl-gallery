@@ -1,17 +1,18 @@
-import * as M from './gl-matrix.js';
+import * as M from 'gl-matrix';
+import { vec3 } from 'gl-matrix';
 
 // PRIMITIVE GENERATORS
 // ====================
-function generate_cube_primitive() {
-	let cube_p = {
+export function generate_cube_primitive():any {
+	let cube_p:any = {
 		vert_count: 24,
 		elem_count: 36,
 		vertices: [],
 		indices: [],
 	};
-	let n = M.vec3.create();
-	let v = M.vec3.create();
-	let index = 0;
+	let n:vec3 = M.vec3.create();
+	let v:vec3 = M.vec3.create();
+	let index:number = 0;
 	// Positive faces values
 	for(let negative=0; negative<=1; negative++) {
 		for(let i=0; i<3; i++) {
@@ -52,8 +53,8 @@ function generate_cube_primitive() {
 
 // Const primitives
 // ====================
-const cube_p = generate_cube_primitive();
-const quad_p = {
+const cube_p:any = generate_cube_primitive();
+const quad_p:any = {
 	vert_count: 4,
 	elem_count: 6,
 	vertices: interlace_2(

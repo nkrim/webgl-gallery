@@ -139,9 +139,28 @@ function init_vaos(gl, room_list) {
 	// unbind vao
 	gl.bindVertexArray(null);
 
+	// player buffer
+	// -------------
+	// vao
+	const player_vao = gl.createVertexArray();
+	gl.bindVertexArray(player_vao);
+	// vertex buffer
+	const player_vertex_buffer = gl.createBuffer();
+  	gl.bindBuffer(gl.ARRAY_BUFFER, player_vertex_buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([1,0,1, 1,0,-1, -1,0,-1, -1,0,1, 0,1,0, 0,-1,0]), gl.STATIC_DRAW);
+	gl.enableVertexAttribArray(attribute_locs.position);
+	gl.vertexAttribPointer(attribute_locs.position, 3, gl.FLOAT, false, 0, 0);
+	// index buffer
+	const player_index_buffer = gl.createBuffer();
+  	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, player_index_buffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,4,1,1,4,2,2,4,3,3,4,0,0,5,3,3,5,2,2,5,1,1,5,0]), gl.STATIC_DRAW);
+	// unbind vao
+	gl.bindVertexArray(null);
+
 	return {
 		quad: quad_vao,
 		room: room_vao,
+		player: player_vao,
 	};
 }
 
@@ -219,8 +238,11 @@ function init_textures(gl) {
 	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
+	const shadow_map_size = 1024;
+	const shadow_atlas_size = 1;
 	tx_obj.shadow_atlas = {};
-	tx_obj.shadow_atlas.dims = M.vec2.create(); M.vec2.set(tx_obj.shadow_atlas.dims, gl.canvas.clientHeight*2, gl.canvas.clientHeight*2);
+	tx_obj.shadow_atlas.dims = M.vec2.create(); 
+	M.vec2.set(tx_obj.shadow_atlas.dims, 1024, 1024);
 	tx_obj.shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
 	tx_obj.shadow_atlas.screen_tex = gen_screen_color_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
 	// light accumulation buffer
@@ -492,7 +514,11 @@ function main_init(gl, room_list) {
 								gen_ssao_pass_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_pass_l),
 		ssao_blur: 			init_shader_program(gl, ssao_blur_v, 
 								gen_ssao_blur_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_blur_l),
-		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, gen_spotlight_pass_f(), spotlight_pass_l),
+		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, 
+								gen_spotlight_pass_f(
+									gen_poisson_disc_samples(PCF_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT/2),
+									gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2)
+								), spotlight_pass_l),
 		fxaa_pass_variants: [
 				init_shader_program(gl, fxaa_pass_v, 
 					gen_fxaa_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight, FXAA_QUALITY_SETTINGS[0]), 

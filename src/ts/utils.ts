@@ -69,3 +69,7 @@ export function vec3_gamma_to_linear(target:vec3, source?:vec3):void {
 		source = target;
 	vec3.set(target, gamma_to_linear(source[0]), gamma_to_linear(source[1]), gamma_to_linear(source[2]));
 }
+
+export function pretty_float(x:number, n:number) {
+	return x.toFixed(n).match(/^(-?\d+\.(?:0|\d*[^0]))(0*)$/)[1];
+}

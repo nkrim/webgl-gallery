@@ -1,5 +1,5 @@
 import * as M from 'gl-matrix';
-import { vec3, vec4, mat4 } from 'gl-matrix';
+import { vec3, vec4, mat4, quat } from 'gl-matrix';
 import { Room } from './room';
 import { Spotlight } from './spotlight';
 
@@ -59,17 +59,22 @@ function shadowmap_pass(gl:any, pd:any):void {
 		gl.uniform1f(shader.uniforms.znear, light.zplanes[0]);
 		gl.uniform1f(shader.uniforms.zfar, light.zplanes[1]);
 
-		// BIND VAO
-		gl.bindVertexArray(pd.vaos.room);
-		// DRAW
-		{
-			const element_count :number = room.mesh_count_i;
-			const type			:number = gl.UNSIGNED_SHORT;
-			const offset 		:number = room.buffer_offset_i;
-			gl.drawElements(gl.TRIANGLES, element_count, type, offset);
-		}
-		// UNBIND VAO
-		gl.bindVertexArray(null);
+		// DRAW ROOM		
+		gl.bindVertexArray(pd.vaos.room);		// BIND VAO
+		gl.drawElements(gl.TRIANGLES, room.mesh_count_i, gl.UNSIGNED_SHORT, room.buffer_offset_i);
+		gl.bindVertexArray(null);				// UNBIND VAO
+
+		// setup player mvm
+		const player_quat:quat = M.quat.create(); M.quat.rotateY(player_quat, player_quat, pd.cam.yaw);
+		const player_trans:vec3 = M.vec3.create(); M.vec3.add(player_trans, pd.cam.pos, [0,-0.5,0]);
+		const player_mv_m:mat4 = M.mat4.create();
+		M.mat4.fromRotationTranslationScale(player_mv_m, player_quat, player_trans, [0.5,1.5,0.5]);
+		M.mat4.mul(player_mv_m, light.cam.get_view_matrix(), player_mv_m);
+		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_mv_m);
+		// DRAW PLAYER
+		gl.bindVertexArray(pd.vaos.player);		// BIND VAO
+		gl.drawElements(gl.TRIANGLES, 24, gl.UNSIGNED_SHORT, 0);
+		gl.bindVertexArray(null);				// UNBIND VAO
 	}
 
 	// reset viewport
@@ -276,8 +281,6 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 
 	// shadowmap uniform set
 	gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.dims);
-	gl.uniform2fv(shader.uniforms.poisson_samples, pd.poisson_samples);
-	gl.uniform2fv(shader.uniforms.blocker_samples, pd.blocker_samples);
 
 	// matrix uniform set
 	const view_m:mat4 = pd.cam.get_view_matrix();

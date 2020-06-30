@@ -1,7 +1,8 @@
+import { pretty_float } from '../ts/utils.ts';
+
 // CONSTANTS
-export const PCSS_BLOCKER_GRID_SIZE = 4;
-export const PCSS_POISSON_SAMPLE_COUNT = 64;
 export const PCF_POISSON_SAMPLE_COUNT = 64;
+export const PCSS_POISSON_SAMPLE_COUNT = 32;
 
 // LOCATIONS
 export const spotlight_pass_l = {
@@ -17,8 +18,6 @@ export const spotlight_pass_l = {
         shadow_atlas_tex: 'u_shadow_atlas_tex',
 
         shadowmap_dims: 'u_shadowmap_dims',
-        blocker_samples: 'u_blocker_samples',
-        poisson_samples: 'u_poisson_samples',
 
         camera_view_to_light_view: 'u_camera_view_to_light_view',
         light_proj: 'u_light_proj',
@@ -49,12 +48,23 @@ void main() {
 `;
 
 // FRAGMENT SHADER
-export function gen_spotlight_pass_f() { 
+export function gen_spotlight_pass_f(pcf_samples, pcss_samples) { 
+    const decimal_length = 8;
+    const pretty_vec2 = function(a,b) { return `vec2(${pretty_float(a, decimal_length)},${pretty_float(b, decimal_length)})`; }
+    // genereate pcf_samples string
+    let pcf_samples_string = pretty_vec2(pcf_samples[0], pcf_samples[1]);
+    for(let i=2; i<2*PCF_POISSON_SAMPLE_COUNT; i+=2)
+        pcf_samples_string += `,${pretty_vec2(pcf_samples[i], pcf_samples[i+1])}`;
+    // genereate pccc_samples string
+    let pcss_samples_string = pretty_vec2(pcss_samples[0], pcss_samples[1]);
+    for(let i=2; i<2*PCSS_POISSON_SAMPLE_COUNT; i+=2)
+        pcss_samples_string += `,${pretty_vec2(pcss_samples[i], pcss_samples[i+1])}`;
+
     // generate pcf loop
     let pcf_loop = '';
-    for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT; i++) {
+    for(let i=0; i<PCF_POISSON_SAMPLE_COUNT; i++) {
         pcf_loop += `
-    shadow += 4.0*texture(u_shadow_atlas_tex, vec3(s_projcoord.xy + rot*(u_poisson_samples[${i}]*sample_width*sm_texel), s_projcoord.z+shadow_bias));`;
+    shadow += 4.0*texture(u_shadow_atlas_tex, vec3(s_projcoord.xy + rot*(pcf_samples[${i}]*sample_width*sm_texel), s_projcoord.z+shadow_bias));`;
     }
 
     return `#version 300 es
@@ -73,13 +83,14 @@ uniform sampler2D u_shadow_atlas_linear_tex;
 uniform sampler2DShadow u_shadow_atlas_tex;
 
 // shadowmap constants
-// const int blocker_sample_count = ${PCSS_BLOCKER_GRID_SIZE}*${PCSS_BLOCKER_GRID_SIZE}; // for grid versin
-const int blocker_sample_count = ${PCSS_BLOCKER_GRID_SIZE};
-const int poisson_sample_count = ${PCSS_POISSON_SAMPLE_COUNT};
-// shadowmap uniform
+const int pcf_sample_count = ${PCF_POISSON_SAMPLE_COUNT};
+const int pcss_sample_count = ${PCSS_POISSON_SAMPLE_COUNT};
+// shadowmap arrays
+const vec2 pcf_samples[pcf_sample_count] = vec2[](${pcf_samples_string});
+const vec2 pcss_samples[pcss_sample_count] = vec2[](${pcss_samples_string});
+
+// shadowmap uniforms
 uniform vec2 u_shadowmap_dims;
-uniform vec2 u_blocker_samples[blocker_sample_count];
-uniform vec2 u_poisson_samples[poisson_sample_count];
 
 // matrix uniforms
 uniform mat4 u_camera_view_to_light_view;
@@ -170,14 +181,14 @@ void main() {
 float shadowmap_pcf(vec3 s_projcoord, vec2 sm_texel, float sample_width, mat2 rot, float shadow_bias) {
     float shadow = 0.0;
     ${pcf_loop}
-    return shadow/(4.0*float(poisson_sample_count));
+    return shadow/(4.0*float(pcf_sample_count));
 }
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_texel, float region_scale, mat2 rot) {
     int blockers = 0;
     float avg_blocker_depth = 0.0;
-    for (int i=0; i<blocker_sample_count; i++) {
-        vec2 offset = rot*(u_blocker_samples[i] * region_scale * sm_texel);
-        //vec2 offset = u_blocker_samples[i] * region_scale * sm_texel;
+    for (int i=0; i<pcss_sample_count; i++) {
+        vec2 offset = rot*(pcss_samples[i] * region_scale * sm_texel);
+        //vec2 offset = pcss_samples[i] * region_scale * sm_texel;
 
         float blocker_sample = texture(u_shadow_atlas_linear_tex, s_texcoord + offset).x;
         if (blocker_sample < linear_z) {

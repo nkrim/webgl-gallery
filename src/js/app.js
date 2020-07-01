@@ -187,7 +187,7 @@ function gen_screen_color_texture(gl, filter_function, dimensions) {
             width, height, border, srcFormat, srcType, pixel);
 	return tx;
 }
-function gen_screen_depth_texture(gl, filter_function, dimensions) {
+function gen_screen_depth_texture(gl, filter_function, dimensions, shadows=false) {
 	if(dimensions == undefined) {
 		dimensions = M.vec2.create();
 		M.vec2.set(dimensions, gl.canvas.clientWidth, gl.canvas.clientHeight);
@@ -198,7 +198,10 @@ function gen_screen_depth_texture(gl, filter_function, dimensions) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_function);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+	if(shadows) {
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+		
+	}
 	const level = 0;
 	const internalFormat = gl.DEPTH_COMPONENT16;
 	const width = dimensions[0];
@@ -239,12 +242,15 @@ function init_textures(gl) {
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
 	const shadow_map_size = 1024;
-	const shadow_atlas_size = 1;
-	tx_obj.shadow_atlas = {};
-	tx_obj.shadow_atlas.dims = M.vec2.create(); 
-	M.vec2.set(tx_obj.shadow_atlas.dims, 1024, 1024);
-	tx_obj.shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
-	tx_obj.shadow_atlas.screen_tex = gen_screen_color_texture(gl, gl.LINEAR, tx_obj.shadow_atlas.dims);
+	const shadow_atlas_size = 2;
+	const shadow_atlas = {
+		map_dims: [1024, 1024],
+		atlas_size: 1,
+	};
+	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
+	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.LINEAR, atlas_dims, true);
+	shadow_atlas.screen_tex = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims);
+	tx_obj.shadow_atlas = shadow_atlas;
 	// light accumulation buffer
 	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
 	// screen write texture

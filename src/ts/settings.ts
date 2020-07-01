@@ -1,6 +1,9 @@
 import { FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass';
 
 export const DEFAULT_SETTINGS:any = {
+	player: {
+		model: true,
+	},
 	ssao: {
 		enabled: false,
 	},
@@ -11,6 +14,17 @@ export const DEFAULT_SETTINGS:any = {
 }
 
 export function init_settings_handlers(pd:any):void {
+	// player_model
+	const player_model:any = document.querySelector('#playerModel');
+	function player_model_button_state() {
+			player_model.children[0].textContent = pd.settings.player.model?'ON':'OFF';
+			player_model.classList.toggle('button-active', pd.settings.player.model); 
+	};
+	player_model_button_state();
+	player_model.onclick = function() {
+		pd.settings.player.model = !pd.settings.player.model;
+		player_model_button_state();
+	}
 	// ssao_enabled
 	const ssao_enabled:any = document.querySelector('#ssaoEnabled');
 	function ssao_enabled_button_state() {

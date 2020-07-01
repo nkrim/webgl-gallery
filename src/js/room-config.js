@@ -34,8 +34,8 @@ export const room_config = [
 		],
 		ambient_color: [1.0,1.0,1.0], ambient_intensity: 0.1,
 		spotlights: [
-			// new Spotlight(new Camera([3.1, 4, 1.75], -0.23441, Math.PI/4), [1.0,0.95,0.9], 1.5, [25,45], 1, [1.0,100.0]),
-			new Spotlight(new Camera([3, 0.25, -0.05], Math.PI/8, Math.PI/2), [1.0,0.95,0.9], 1.5, [35,65], 1, [0.1,100.0]),
+			new Spotlight(new Camera([3.1, 4, 1.75], -0.23441, Math.PI/4), [1.0,0.95,0.9], 1.5, [25,45], 1, [1.0,100.0]),
+			// new Spotlight(new Camera([3, 0.25, -0.05], Math.PI/8, Math.PI/2), [1.0,0.95,0.9], 1.5, [35,65], 1, [0.1,100.0]),
 		]
 	}
 ]

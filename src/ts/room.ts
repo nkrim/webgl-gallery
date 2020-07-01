@@ -31,9 +31,11 @@ export class Room {
 	// buffer info
 	buffer_offset_v:	number;
 	buffer_offset_i:	number;
+
 	// wall geometry
 	mesh_count_v: 		number;
 	mesh_count_i: 		number;
+	mesh_count_i_walls:	number;
 	mesh_vertices:		Array<number>;
 	mesh_normals: 		Array<number>;
 	mesh_albedo:		Array<number>;
@@ -153,6 +155,7 @@ export class Room {
 				this.mesh_count_i += 6;
 			}
 		}
+		this.mesh_count_i_walls = this.mesh_count_i;
 
 		// FLOOR/CEIL BUILDING
 		// ----------------------------

@@ -23,12 +23,9 @@ function get_projection(gl:any, fov:number):mat4 {
 
 /* SHADOW MAPPING PASS
 ====================== */
-function shadowmap_pass(gl:any, pd:any):void {
+function shadowmap_pass(gl:any, pd:any, room:Room):void {
 	// bind fb
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.shadowmap_pass);
-
-	// set viewport
-	gl.viewport(0, 0, pd.tx.shadow_atlas.dims[0], pd.tx.shadow_atlas.dims[1]);
 
 	// use shader
 	const shader = pd.shaders.shadowmap_pass;
@@ -39,14 +36,27 @@ function shadowmap_pass(gl:any, pd:any):void {
 	gl.clearDepth(1.0);                
 	gl.enable(gl.DEPTH_TEST);         
 	gl.enable(gl.CULL_FACE);
-	gl.cullFace(gl.FRONT); // only render backfaces for shadowmapping
+	// gl.cullFace(gl.FRONT); // only render backfaces for shadowmapping
+	gl.cullFace(gl.BACK);
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+	// init player_model matrix
+	const player_quat:quat = M.quat.create(); M.quat.rotateY(player_quat, player_quat, pd.cam.yaw);
+	const player_trans:vec3 = M.vec3.create(); M.vec3.add(player_trans, pd.cam.pos, [0,-0.5,0]);
+	const player_scale:vec3 = M.vec3.create(); M.vec3.set(player_scale, 0.5, 1.5, 0.5);
+	const player_model_m:mat4 = M.mat4.create();
+	M.mat4.fromRotationTranslationScale(player_model_m, player_quat, player_trans, player_scale);
+
 	// SHOULD BE A LOOP IN THE FUTURE, FOR NOW 1 LIGHT
-	{	
-		const room = pd.room_list[0];
-		const light = room.spotlights[0];
+	for(let i=0; i<room.spotlights.length; i++) {	
+		// fetch light
+		const light = room.spotlights[i];
+
+		// set viewport
+		const vp_offset_x = pd.tx.shadow_atlas.map_dims[0] * (i%pd.tx.shadow_atlas.atlas_size);
+		const vp_offset_y = pd.tx.shadow_atlas.map_dims[1] * Math.floor(i/pd.tx.shadow_atlas.atlas_size);
+		gl.viewport(vp_offset_x, vp_offset_y, pd.tx.shadow_atlas.map_dims[0], pd.tx.shadow_atlas.map_dims[1]);
 	 	
 		// Set projection uniform
 		gl.uniformMatrix4fv(shader.uniforms.proj_m, false, light.proj_m);
@@ -61,20 +71,18 @@ function shadowmap_pass(gl:any, pd:any):void {
 
 		// DRAW ROOM		
 		gl.bindVertexArray(pd.vaos.room);		// BIND VAO
-		gl.drawElements(gl.TRIANGLES, room.mesh_count_i, gl.UNSIGNED_SHORT, room.buffer_offset_i);
+		gl.drawElements(gl.TRIANGLES, room.mesh_count_i_walls, gl.UNSIGNED_SHORT, room.buffer_offset_i);
 		gl.bindVertexArray(null);				// UNBIND VAO
 
-		// setup player mvm
-		const player_quat:quat = M.quat.create(); M.quat.rotateY(player_quat, player_quat, pd.cam.yaw);
-		const player_trans:vec3 = M.vec3.create(); M.vec3.add(player_trans, pd.cam.pos, [0,-0.5,0]);
-		const player_mv_m:mat4 = M.mat4.create();
-		M.mat4.fromRotationTranslationScale(player_mv_m, player_quat, player_trans, [0.5,1.5,0.5]);
-		M.mat4.mul(player_mv_m, light.cam.get_view_matrix(), player_mv_m);
-		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_mv_m);
-		// DRAW PLAYER
-		gl.bindVertexArray(pd.vaos.player);		// BIND VAO
-		gl.drawElements(gl.TRIANGLES, 24, gl.UNSIGNED_SHORT, 0);
-		gl.bindVertexArray(null);				// UNBIND VAO
+		if(pd.settings.player.model) {
+			// setup player mvm
+			M.mat4.mul(player_model_m, light.cam.get_view_matrix(), player_model_m);
+			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_model_m);
+			// DRAW PLAYER
+			gl.bindVertexArray(pd.vaos.player);		// BIND VAO
+			gl.drawElements(gl.TRIANGLES, 24, gl.UNSIGNED_SHORT, 0);
+			gl.bindVertexArray(null);				// UNBIND VAO
+		}
 	}
 
 	// reset viewport
@@ -242,7 +250,7 @@ function ssao_blur(gl:any, pd:any):void {
 
 /* SPOTLIGHT INT PASS
 ===================== */
-function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
+function spotlight_pass(gl:any, pd:any, light:Spotlight, light_index:number):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.light_val);
 
@@ -280,7 +288,11 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight):void {
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 5);
 
 	// shadowmap uniform set
-	gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.dims);
+	gl.uniform3f(shader.uniforms.shadow_atlas_info,  
+		light_index % pd.tx.shadow_atlas.atlas_size,
+		Math.floor(light_index / pd.tx.shadow_atlas.atlas_size),
+		pd.tx.shadow_atlas.atlas_size);
+	gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.map_dims);
 
 	// matrix uniform set
 	const view_m:mat4 = pd.cam.get_view_matrix();
@@ -407,7 +419,7 @@ function fxaa_pass(gl:any, pd:any):void {
 function render(gl:any, pd:any):void {
 
 	// shadowmap pass
-	shadowmap_pass(gl, pd);
+	shadowmap_pass(gl, pd, pd.room_list[0]);
 
 	// get projection matrix
 	const proj_m:mat4 = get_projection(gl, 90);
@@ -424,7 +436,7 @@ function render(gl:any, pd:any):void {
 	}
 
 	// spotlight pass
-	spotlight_pass(gl, pd, pd.room_list[0].spotlights[0]);
+	spotlight_pass(gl, pd, pd.room_list[0].spotlights[0], 0);
 
 	// combine gbuffer contents on quad
 	quad_deferred_combine(gl, pd, !pd.settings.fxaa.enabled);

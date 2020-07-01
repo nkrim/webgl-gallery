@@ -17,6 +17,7 @@ export const spotlight_pass_l = {
         shadow_atlas_linear_tex: 'u_shadow_atlas_linear_tex',
         shadow_atlas_tex: 'u_shadow_atlas_tex',
 
+        shadow_atlas_info: 'u_shadow_atlas_info',
         shadowmap_dims: 'u_shadowmap_dims',
 
         camera_view_to_light_view: 'u_camera_view_to_light_view',
@@ -64,7 +65,17 @@ export function gen_spotlight_pass_f(pcf_samples, pcss_samples) {
     let pcf_loop = '';
     for(let i=0; i<PCF_POISSON_SAMPLE_COUNT; i++) {
         pcf_loop += `
-    shadow += 4.0*texture(u_shadow_atlas_tex, vec3(s_projcoord.xy + rot*(pcf_samples[${i}]*sample_width*sm_texel), s_projcoord.z+shadow_bias));`;
+    shadow += texture(u_shadow_atlas_tex, vec3(s_projcoord.xy + rot*(pcf_samples[${i}]*sample_width*sm_texel), s_projcoord.z+shadow_bias));`;
+    }
+
+    // generate pcss loop
+    let pcss_loop = '';
+    for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT; i++) {
+        pcss_loop += `
+        offset = rot*(pcss_samples[${i}] * region_scale * sm_texel);
+        blocker_sample = texture(u_shadow_atlas_linear_tex, s_texcoord + offset).x;
+        if(blocker_sample < linear_z) blockers++;
+        if(blocker_sample < linear_z) avg_blocker_depth += blocker_sample;`
     }
 
     return `#version 300 es
@@ -91,6 +102,7 @@ const vec2 pcss_samples[pcss_sample_count] = vec2[](${pcss_samples_string});
 
 // shadowmap uniforms
 uniform vec2 u_shadowmap_dims;
+uniform vec3 u_shadow_atlas_info;
 
 // matrix uniforms
 uniform mat4 u_camera_view_to_light_view;
@@ -113,8 +125,10 @@ out vec4 o_fragcolor;
 
 // constants
 const float PI = 3.14159265359;
+const float max_bias = 0.0001;
+const float min_bias = 0.0001;
 
-// pcss constants
+// pcss constantas
 const float light_size = 20.0;
 
 // FUNCTION DEFINITIONS
@@ -163,13 +177,19 @@ void main() {
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
 
-    float shadow_bias = max(0.001 * (1.0 - norm_dot), 0.0001);
+    // adjust for atlas position
+    P_from_light.xy += u_shadow_atlas_info.xy;
+    P_from_light.xy /= u_shadow_atlas_info.z;
+
+    float shadow_bias = -max(max_bias * (1.0 - norm_dot), min_bias);
     float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, light_size, shadow_bias);
-    //shadow = 1.0-((1.0-shadow)*(1.0-shadow));
-    shadow = clamp(shadow*2.0, 0.0, 1.0);
+
+    // factor to make shadows falloff more smothly
+    // shadow = 1.0-((1.0-shadow)*(1.0-shadow));
+    // shadow = clamp(shadow*2.0, 0.0, 1.0);
 
     if(shadow < 0.0001)
-        discard;
+       discard;
 
     o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
     //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
@@ -181,21 +201,14 @@ void main() {
 float shadowmap_pcf(vec3 s_projcoord, vec2 sm_texel, float sample_width, mat2 rot, float shadow_bias) {
     float shadow = 0.0;
     ${pcf_loop}
-    return shadow/(4.0*float(pcf_sample_count));
+    return shadow/(float(pcf_sample_count));
 }
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_texel, float region_scale, mat2 rot) {
     int blockers = 0;
     float avg_blocker_depth = 0.0;
-    for (int i=0; i<pcss_sample_count; i++) {
-        vec2 offset = rot*(pcss_samples[i] * region_scale * sm_texel);
-        //vec2 offset = pcss_samples[i] * region_scale * sm_texel;
-
-        float blocker_sample = texture(u_shadow_atlas_linear_tex, s_texcoord + offset).x;
-        if (blocker_sample < linear_z) {
-            blockers++;
-            avg_blocker_depth += blocker_sample;
-        }
-    }
+    vec2 offset;
+    float blocker_sample;
+    ${pcss_loop}
     float f_blockers = float(blockers);
     if(blockers > 0) avg_blocker_depth /= f_blockers;
     return vec2(avg_blocker_depth, f_blockers);
@@ -210,9 +223,16 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     float max_search = max_penumbra/5.0;
     float min_search = 4.0;
 
-    // perform shadowmap filtering
     vec2 sm_texel = 1.0/u_shadowmap_dims;
     float linear_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
+
+    /*// failsafe for sharp corners
+    // !!!!IMPORTANT - DELETE ONCE I REMOVE SQUARE COLUMNS
+    //if(texture(u_shadow_atlas_tex, vec3(s_projcoord.xy, s_projcoord.z+0.00001)) >= 0.9)
+    if(texture(u_shadow_atlas_linear_tex, s_projcoord.xy).x > linear_z)
+        return 1.0;*/
+
+    // perform shadowmap filtering
     float search_width = max(min_search,min(max_search, light_size * (light_z - u_light_znear) / min(eye_z, 1.0)));
     vec2 blocker_res = pcss_blocker_distance(s_projcoord.xy, linear_z, sm_texel, search_width, rot);
     if(blocker_res.y < 0.9 || blocker_res.x >= linear_z+shadow_bias)

@@ -79,8 +79,8 @@ export function gen_spotlight_pass_f(pcf_samples, pcss_samples) {
     }
 
     return `#version 300 es
-precision mediump float;
-precision mediump sampler2DShadow;
+precision highp float;
+precision highp sampler2DShadow;
 
 // varyings
 in vec2 v_texcoord;
@@ -125,7 +125,7 @@ out vec4 o_fragcolor;
 
 // constants
 const float PI = 3.14159265359;
-const float max_bias = 0.0001;
+const float max_bias = 0.0005;
 const float min_bias = 0.0001;
 
 // pcss constantas
@@ -234,11 +234,13 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
 
     // perform shadowmap filtering
     float search_width = max(min_search,min(max_search, light_size * (light_z - u_light_znear) / min(eye_z, 1.0)));
+    search_width /= u_shadow_atlas_info.z; // normalize to atlas
     vec2 blocker_res = pcss_blocker_distance(s_projcoord.xy, linear_z, sm_texel, search_width, rot);
     if(blocker_res.y < 0.9 || blocker_res.x >= linear_z+shadow_bias)
         return 1.0;
 
     float penumbra_size = min(max_penumbra, light_size * (linear_z - blocker_res.x) / blocker_res.x);
+    penumbra_size /= u_shadow_atlas_info.z; // normalize to atlas
     float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
     return shadow;
 }

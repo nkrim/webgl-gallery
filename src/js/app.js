@@ -153,7 +153,7 @@ function init_vaos(gl, room_list) {
 	// index buffer
 	const player_index_buffer = gl.createBuffer();
   	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, player_index_buffer);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,4,1,1,4,2,2,4,3,3,4,0,0,5,3,3,5,2,2,5,1,1,5,0]), gl.STATIC_DRAW);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,4,1,2,4,2,3,4,3,0,4,0,3,5,3,2,5,2,1,5,1,0,5]), gl.STATIC_DRAW);
 	// unbind vao
 	gl.bindVertexArray(null);
 
@@ -200,7 +200,7 @@ function gen_screen_depth_texture(gl, filter_function, dimensions, shadows=false
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	if(shadows) {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
-		
+
 	}
 	const level = 0;
 	const internalFormat = gl.DEPTH_COMPONENT16;
@@ -241,11 +241,9 @@ function init_textures(gl) {
 	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
-	const shadow_map_size = 1024;
-	const shadow_atlas_size = 2;
 	const shadow_atlas = {
 		map_dims: [1024, 1024],
-		atlas_size: 1,
+		atlas_size: 2,
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
 	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.LINEAR, atlas_dims, true);

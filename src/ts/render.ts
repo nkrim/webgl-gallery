@@ -75,9 +75,10 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 		gl.bindVertexArray(null);				// UNBIND VAO
 
 		if(pd.settings.player.model) {
+			const player_mv_m = M.mat4.create();
 			// setup player mvm
-			M.mat4.mul(player_model_m, light.cam.get_view_matrix(), player_model_m);
-			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_model_m);
+			M.mat4.mul(player_mv_m, mv_m, player_model_m);
+			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_mv_m);
 			// DRAW PLAYER
 			gl.bindVertexArray(pd.vaos.player);		// BIND VAO
 			gl.drawElements(gl.TRIANGLES, 24, gl.UNSIGNED_SHORT, 0);
@@ -250,7 +251,7 @@ function ssao_blur(gl:any, pd:any):void {
 
 /* SPOTLIGHT INT PASS
 ===================== */
-function spotlight_pass(gl:any, pd:any, light:Spotlight, light_index:number):void {
+function spotlight_pass(gl:any, pd:any, room:Room):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.light_val);
 
@@ -264,6 +265,8 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight, light_index:number):voi
 	gl.disable(gl.DEPTH_TEST);          
 	gl.enable(gl.CULL_FACE);
 	gl.cullFace(gl.BACK);
+	gl.enable(gl.BLEND);
+	gl.blendFunc(gl.ONE, gl.ONE);
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -287,46 +290,53 @@ function spotlight_pass(gl:any, pd:any, light:Spotlight, light_index:number):voi
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 5);
 
-	// shadowmap uniform set
-	gl.uniform3f(shader.uniforms.shadow_atlas_info,  
-		light_index % pd.tx.shadow_atlas.atlas_size,
-		Math.floor(light_index / pd.tx.shadow_atlas.atlas_size),
-		pd.tx.shadow_atlas.atlas_size);
-	gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.map_dims);
+	// light iteration
+	for(let light_index=0; light_index<room.spotlights.length; light_index++) {
+		const light = room.spotlights[light_index];
+		// shadowmap uniform set
+		gl.uniform3f(shader.uniforms.shadow_atlas_info,  
+			light_index % pd.tx.shadow_atlas.atlas_size,
+			Math.floor(light_index / pd.tx.shadow_atlas.atlas_size),
+			pd.tx.shadow_atlas.atlas_size);
+		gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.map_dims);
 
-	// matrix uniform set
-	const view_m:mat4 = pd.cam.get_view_matrix();
-	const inv_view_m:mat4 = M.mat4.create();
-	M.mat4.invert(inv_view_m, view_m);
-	const c_view_to_l_view:mat4 = M.mat4.create();
-	M.mat4.mul(c_view_to_l_view, light.cam.get_view_matrix(), inv_view_m);
-	gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_view, false, c_view_to_l_view);
-	gl.uniformMatrix4fv(shader.uniforms.light_proj, false, light.proj_m);
+		// matrix uniform set
+		const view_m:mat4 = pd.cam.get_view_matrix();
+		const inv_view_m:mat4 = M.mat4.create();
+		M.mat4.invert(inv_view_m, view_m);
+		const c_view_to_l_view:mat4 = M.mat4.create();
+		M.mat4.mul(c_view_to_l_view, light.cam.get_view_matrix(), inv_view_m);
+		gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_view, false, c_view_to_l_view);
+		gl.uniformMatrix4fv(shader.uniforms.light_proj, false, light.proj_m);
 
-	// light uniform set
-	const v4:vec4 = M.vec4.create();
-	M.vec4.set(v4, light.cam.pos[0], light.cam.pos[1], light.cam.pos[2], 1);
-	M.vec4.transformMat4(v4, v4, view_m);
-	gl.uniform3f(shader.uniforms.light_pos, v4[0], v4[1], v4[2]);
-	const light_dir = light.cam.get_look_dir();
-	M.vec4.set(v4, light_dir[0], light_dir[1], light_dir[2], 0);
-	M.vec4.transformMat4(v4, v4, view_m);
+		// light uniform set
+		const v4:vec4 = M.vec4.create();
+		M.vec4.set(v4, light.cam.pos[0], light.cam.pos[1], light.cam.pos[2], 1);
+		M.vec4.transformMat4(v4, v4, view_m);
+		gl.uniform3f(shader.uniforms.light_pos, v4[0], v4[1], v4[2]);
+		const light_dir = light.cam.get_look_dir();
+		M.vec4.set(v4, light_dir[0], light_dir[1], light_dir[2], 0);
+		M.vec4.transformMat4(v4, v4, view_m);
 
-	gl.uniform3f(shader.uniforms.light_dir, v4[0], v4[1], v4[2]);
-	gl.uniform3fv(shader.uniforms.light_color, light.color);
-	gl.uniform1f(shader.uniforms.light_int, light.intensity);
-	gl.uniform1f(shader.uniforms.light_i_angle, light.i_angle);
-	gl.uniform1f(shader.uniforms.light_o_angle, light.o_angle);
-	gl.uniform1f(shader.uniforms.light_falloff, light.falloff);
-	gl.uniform1f(shader.uniforms.light_znear, light.zplanes[0]);
-	gl.uniform1f(shader.uniforms.light_zfar, light.zplanes[1]);
+		gl.uniform3f(shader.uniforms.light_dir, v4[0], v4[1], v4[2]);
+		gl.uniform3fv(shader.uniforms.light_color, light.color);
+		gl.uniform1f(shader.uniforms.light_int, light.intensity);
+		gl.uniform1f(shader.uniforms.light_i_angle, light.i_angle);
+		gl.uniform1f(shader.uniforms.light_o_angle, light.o_angle);
+		gl.uniform1f(shader.uniforms.light_falloff, light.falloff);
+		gl.uniform1f(shader.uniforms.light_znear, light.zplanes[0]);
+		gl.uniform1f(shader.uniforms.light_zfar, light.zplanes[1]);
 
-	// bind vao
-	gl.bindVertexArray(pd.vaos.quad);
-	// draw
-	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-	// unbind vao
-	gl.bindVertexArray(null);
+		// bind vao
+		gl.bindVertexArray(pd.vaos.quad);
+		// draw
+		gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+		// unbind vao
+		gl.bindVertexArray(null);
+	}
+
+	// disable blending
+	gl.disable(gl.BLEND);
 }
 
 /* QUAD DRAWN GBUFFER COMBINE PASS
@@ -436,7 +446,7 @@ function render(gl:any, pd:any):void {
 	}
 
 	// spotlight pass
-	spotlight_pass(gl, pd, pd.room_list[0].spotlights[0], 0);
+	spotlight_pass(gl, pd, pd.room_list[0]);
 
 	// combine gbuffer contents on quad
 	quad_deferred_combine(gl, pd, !pd.settings.fxaa.enabled);

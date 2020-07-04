@@ -5,7 +5,8 @@ import * as INPUT from '../ts/input.ts';
 import { lerp, interlace_n, EPSILON } from '../ts/utils.ts';
 import * as S from '../ts/settings.ts';
 import * as M from './gl-matrix.js';
-import { load_room, room_config } from './room-config.js';
+import { load_room, room_config } from '../ts/room-config.ts';
+import { attribute_locs, init_mesh_vao } from '../ts/mesh.ts';
 // Shaders
 // import { default_shader_v, default_shader_f } from './shaders/default_shader.js';
 import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from '../shaders/deferred_pass.js';
@@ -67,12 +68,12 @@ function init_shader_program(gl, vs_source, fs_source, loc_lookup) {
 	return shader_data;
 }
 
-export const attribute_locs = {
+/*export const attribute_locs = {
 	position: 0,
 	normal: 1,
 	albedo: 2,
 	rough_metal: 3,
-}
+}*/
 function init_vaos(gl, room_list) {
 	// quad buffer
 	// ----------------------
@@ -110,6 +111,7 @@ function init_vaos(gl, room_list) {
 		);
 		for(let j=0; j<interlaced.length; j++)
 			all_room_vertices.push(interlaced[j]);
+		// !!!IMPORTANT HAVE TO ADD offset_v TO MESH_INDICES
 		Array.prototype.push.apply(all_room_indices, room.mesh_indices);
 		// set room offset
 		room.buffer_offset_v = offset_v;
@@ -157,10 +159,15 @@ function init_vaos(gl, room_list) {
 	// unbind vao
 	gl.bindVertexArray(null);
 
+	// mesh buffer
+	// -----------
+	const mesh_vao = init_mesh_vao(gl);
+
 	return {
 		quad: quad_vao,
 		room: room_vao,
 		player: player_vao,
+		mesh: mesh_vao,
 	};
 }
 

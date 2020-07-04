@@ -2,6 +2,8 @@ import * as M from 'gl-matrix';
 import { vec3, vec4, mat4, quat } from 'gl-matrix';
 import { Room } from './room';
 import { Spotlight } from './spotlight';
+import { Model } from './model';
+import { mesh_buffer_info } from './mesh';
 
 /* RENDERING
 ============ */
@@ -62,7 +64,8 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 		gl.uniformMatrix4fv(shader.uniforms.proj_m, false, light.proj_m);
 
 		// Set modelview uniform
-		const mv_m:mat4 = light.cam.get_view_matrix();
+		const view_m:mat4 = light.cam.get_view_matrix();
+		const mv_m:mat4 = M.mat4.create(); M.mat4.copy(mv_m, view_m);
 		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
 
 		// set light uniforms
@@ -74,10 +77,21 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 		gl.drawElements(gl.TRIANGLES, room.mesh_count_i_walls, gl.UNSIGNED_SHORT, room.buffer_offset_i);
 		gl.bindVertexArray(null);				// UNBIND VAO
 
+		// DRAW MODELS
+		gl.bindVertexArray(pd.vaos.mesh);		// BIND VAO
+		for(let j=0; j<room.models.length; j++) {
+			const model = room.models[j];
+			M.mat4.mul(mv_m, light.cam.get_view_matrix(), model.get_model_matrix());
+			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
+			const buffer_info = mesh_buffer_info.get(model.mesh_id);
+			gl.drawElements(gl.TRIANGLES, buffer_info[0], gl.UNSIGNED_SHORT, buffer_info[1]);
+		}
+		gl.bindVertexArray(null);				// UNBIND VAO
+
 		if(pd.settings.player.model) {
 			const player_mv_m = M.mat4.create();
 			// setup player mvm
-			M.mat4.mul(player_mv_m, mv_m, player_model_m);
+			M.mat4.mul(player_mv_m, light.cam.get_view_matrix(), player_model_m);
 			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_mv_m);
 			// DRAW PLAYER
 			gl.bindVertexArray(pd.vaos.player);		// BIND VAO
@@ -130,15 +144,15 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 		}
 
 		// ModelView (and inverse-transpose) construction
-		M.mat4.identity(mv_m);
-		M.mat4.mul(mv_m, view_m, mv_m /*replace with model matrix*/);
-		M.mat4.identity(it_mv_m);
+		//M.mat4.identity(mv_m);
+		M.mat4.copy(mv_m, view_m/*replace with model matrix*/);
+		//M.mat4.identity(it_mv_m);
 		M.mat4.invert(it_mv_m, mv_m);
-		M.mat4.transpose(it_mv_m, it_mv_m);
+		//M.mat4.transpose(it_mv_m, it_mv_m);
 
 		// Set modelview uniforms
 		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
-		gl.uniformMatrix4fv( shader.uniforms.it_mv_m, false, it_mv_m);
+		gl.uniformMatrix4fv(shader.uniforms.it_mv_m, true, it_mv_m);
 
 		// UNIFORMS SET
 		gl.uniform3fv(shader.uniforms.ambient_c, room.ambient_color);
@@ -152,6 +166,23 @@ function gbuffer_pass(gl:any, pd:any, proj_m:mat4):void {
 			const type			:number = gl.UNSIGNED_SHORT;
 			const offset 		:number = room.buffer_offset_i;
 			gl.drawElements(gl.TRIANGLES, element_count, type, offset);
+		}
+		// UNBIND VAO
+		gl.bindVertexArray(null);
+
+		// BIND VAO
+		gl.bindVertexArray(pd.vaos.mesh);
+		// DRAW MODELS
+		for(let j=0; j<room.models.length; j++) {
+			const model:Model = room.models[j];
+			const buffer_info = mesh_buffer_info.get(model.mesh_id);
+
+			M.mat4.mul(mv_m, view_m, model.get_model_matrix());
+			M.mat4.invert(it_mv_m, mv_m);
+
+			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
+			gl.uniformMatrix4fv(shader.uniforms.it_mv_m, true, it_mv_m);
+			gl.drawElements(gl.TRIANGLES, buffer_info[0], gl.UNSIGNED_SHORT, buffer_info[1]);
 		}
 		// UNBIND VAO
 		gl.bindVertexArray(null);

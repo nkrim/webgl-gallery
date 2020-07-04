@@ -31,7 +31,7 @@ export function interlace_n(n:number, arrays:Array<Array<number>>, strides:Array
 		for(let j=0; j<n; j++) {
 			const s = strides[j];
 			for(let k=0; k<s; k++) {
-				interlaced.push(arrays[j][i*s + k]);
+				interlaced.push(arrays[j][(i*s + k)%arrays[j].length]);
 			}
 		}
 	}

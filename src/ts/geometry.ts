@@ -1,5 +1,6 @@
 import * as M from 'gl-matrix';
 import { vec3 } from 'gl-matrix';
+//import { Mesh } from './mesh';
 
 // PRIMITIVE GENERATORS
 // ====================
@@ -51,10 +52,67 @@ export function generate_cube_primitive():any {
 	return cube_p;
 }
 
+export function generate_sphere_primitve(radial_segments:number = 16, vertical_segments:number = 8):any {
+	const vertices:Array<number> = [];
+	const normals :Array<number> = [];
+	const indices :Array<number> = [];
+	let n:vec3 = M.vec3.create();
+	let v:vec3 = M.vec3.create();
+	let index:number = 0;
+	// start at north pole
+	M.vec3.set(v, 0,1,0);
+	M.vec3.copy(n, v);
+	vertices.push(...v);
+	normals.push(...n);
+	// build first radial disc
+	let y = Math.cos(1/vertical_segments * Math.PI);
+	let r = Math.sin(1/vertical_segments * Math.PI);
+	for(let i=0; i<radial_segments; i++) {
+		let theta = i/radial_segments * 2*Math.PI;
+		M.vec3.set(v, r*Math.sin(theta), y, r*Math.cos(theta));
+		M.vec3.normalize(n, v);
+		vertices.push(...v);
+		normals.push(...n);
+	}
+	for(let i=1; i<radial_segments; i++) {
+		indices.push(0,i,i+1);
+	}
+	indices.push(0,radial_segments,1);
+	// build radial discs up to the bottom pole
+	let prev_disc_i = 1;
+	for(let s=2; s<vertical_segments; s++) {
+		let cur_disc_i = prev_disc_i + radial_segments;
+		y = Math.cos(s/vertical_segments * Math.PI);
+		r = Math.sin(s/vertical_segments * Math.PI);
+		for(let i=0; i<radial_segments; i++) {
+			let theta = i/radial_segments * 2*Math.PI;
+			M.vec3.set(v, r*Math.sin(theta), y, r*Math.cos(theta));
+			M.vec3.normalize(n, v);
+			vertices.push(...v);
+			normals.push(...n);
+		}
+		for(let i=0; i<radial_segments-1; i++) {
+			indices.push(prev_disc_i+i, cur_disc_i+i,   cur_disc_i+i+1);
+			indices.push(prev_disc_i+i, cur_disc_i+i+1, prev_disc_i+i+1);
+		}
+		indices.push(prev_disc_i+radial_segments-1, cur_disc_i+radial_segments-1, cur_disc_i);
+		indices.push(prev_disc_i+radial_segments-1, cur_disc_i,                   prev_disc_i);
+		// set next values
+		prev_disc_i = cur_disc_i;
+	}
+
+	return {
+		vertices: vertices,
+		normals: normals,
+		indices: indices,
+	}
+}
+
 // Const primitives
 // ====================
-const cube_p:any = generate_cube_primitive();
-const quad_p:any = {
+export const cube_p:any = generate_cube_primitive();
+export const sphere_p:any = generate_sphere_primitve();
+/*export const quad_p:any = {
 	vert_count: 4,
 	elem_count: 6,
 	vertices: interlace_2(
@@ -62,4 +120,4 @@ const quad_p:any = {
 		[0,0,1,0,0,1,0,0,1,0,0,1], 
 		3, 3, 4),
 	indices: [0,1,2,0,2,3],
-}
+}*/

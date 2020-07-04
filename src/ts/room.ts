@@ -2,6 +2,7 @@ import * as M from 'gl-matrix';
 import { vec2, vec3, mat4 } from 'gl-matrix';
 import { hash_2, gamma_to_linear, vec3_gamma_to_linear } from './utils';
 import { Spotlight } from './spotlight';
+import { Model } from './model';
 
 // ROOM CLASS
 // ==========
@@ -21,6 +22,8 @@ export class Room {
 	floor_rough_metal:	vec2;
 	ceil_albedo:		vec3;
 	ceil_rough_metal:	vec2;
+	// MODELS
+	models: 			Array<Model>;
 	// LIGHTS
 	ambient_color:		vec3;
 	ambient_intensity:	number;
@@ -59,6 +62,8 @@ export class Room {
 			ceil_albedo:		vec3,
 			ceil_rough_metal:	vec2,
 
+			models:				Array<Model>,
+
 			ambient_color:		vec3,
 			ambient_intensity: 	number,
 			spotlights:			Array<Spotlight>
@@ -77,12 +82,16 @@ export class Room {
 		this.floor_rough_metal = M.vec2.create(); M.vec2.copy(this.floor_rough_metal, floor_rough_metal);
 		this.ceil_albedo = M.vec3.create(); vec3_gamma_to_linear(this.ceil_albedo, ceil_albedo);
 		this.ceil_rough_metal = M.vec2.create(); M.vec2.copy(this.ceil_rough_metal, ceil_rough_metal);
+		// MODELS
+		const xz_scale:vec3 = M.vec3.create(); M.vec3.set(xz_scale, room_scale, 1, room_scale);
+		this.models = models;
+		for(let i=0; i<this.models.length; i++)
+			M.vec3.mul(this.models[i].pos, this.models[i].pos, xz_scale);
 		// LIGHTS
 		// ambient
 		this.ambient_color = M.vec3.create(); vec3_gamma_to_linear(this.ambient_color, ambient_color);
 		this.ambient_intensity = gamma_to_linear(ambient_intensity);
 		// spotlights
-		const xz_scale:vec3 = M.vec3.create(); M.vec3.set(xz_scale, room_scale, 1, room_scale);
 		this.spotlights = spotlights; 
 		for(let i:number=0; i<this.spotlights.length; i++) // scale spotlight.pos by room_scale
 			M.vec3.mul(this.spotlights[i].cam.pos, this.spotlights[i].cam.pos, xz_scale);

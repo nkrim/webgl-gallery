@@ -125,7 +125,7 @@ out vec4 o_fragcolor;
 
 // constants
 const float PI = 3.14159265359;
-const float max_bias = 0.0005;
+const float max_bias = 0.005;
 const float min_bias = 0.0001;
 
 // pcss constantas
@@ -151,25 +151,31 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
 float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+vec3 fresnelSchlick(float cosTheta, vec3 F0);
 
 // MAIN FUNCTION
 // =============
 void main() {
-	// grab texture values
+    // grab texture values
+    // -------------------
 	vec3 P = texture(u_pos_tex, v_texcoord).xyz;
 	vec3 N = texture(u_norm_tex, v_texcoord).xyz;
 	vec3 A = texture(u_albedo_tex, v_texcoord).xyz;
 	vec2 RM = texture(u_rough_metal_tex, v_texcoord).xy;
 
 	// spotlight intensity value
-	vec3 l_to_p = normalize(P - u_light_pos);
-    float cos_angle = dot(l_to_p, u_light_dir);
-    float norm_dot = dot(N, -l_to_p);
-    if(norm_dot < 0.0 || cos_angle < u_light_o_angle-0.0001) {
+    // -------------------------
+    vec3 p_to_l_full = u_light_pos - P;
+	vec3 p_to_l = normalize(p_to_l_full);
+    float cos_angle = dot(p_to_l, -u_light_dir);
+    float n_dot_l = dot(N, p_to_l);
+    if(n_dot_l < 0.0 || cos_angle < u_light_o_angle-0.0001) {
         discard;
     }
-	float I = norm_dot * u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
+	float I = n_dot_l * u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
 
+    // shadowmapping
+    // -------------
     // shadow map test
     vec4 P_from_light_view = u_camera_view_to_light_view * vec4(P, 1.0);
     vec4 P_from_light = u_light_proj * P_from_light_view;
@@ -181,23 +187,50 @@ void main() {
     P_from_light.xy += u_shadow_atlas_info.xy;
     P_from_light.xy /= u_shadow_atlas_info.z;
 
-    float shadow_bias = -max(max_bias * (1.0 - norm_dot), min_bias);
+    // calculate shadows
+    float shadow_bias = -max(max_bias * (1.0 - n_dot_l), min_bias);
     float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, light_size, shadow_bias);
-
-    // factor to make shadows falloff more smothly
-    // shadow = 1.0-((1.0-shadow)*(1.0-shadow));
-    // shadow = clamp(shadow*2.0, 0.0, 1.0);
-
     if(shadow < 0.0001)
        discard;
+    // o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
+    // return;
 
-    o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
+    // pbr rendering
+    // -------------
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, A, RM[1]);
+
+    // calculate per-light radiance
+    vec3 p_to_c = normalize(-P);
+    vec3 H = normalize(p_to_c + p_to_l);
+    float distance    = length(p_to_l_full);
+    float attenuation = 1.0 / (distance * distance);
+    vec3 radiance     = I*u_light_color;//u_light_color * attenuation;        
+    
+    // cook-torrance brdf
+    float NDF = DistributionGGX(N, H, RM[0]);        
+    float G   = GeometrySmith(N, p_to_c, p_to_l, RM[0]);      
+    vec3 F    = fresnelSchlick(max(dot(H, p_to_c), 0.0), F0);       
+    
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - RM[1];    
+    
+    vec3 numerator    = NDF * G * F;
+    float denominator = 4.0 * max(dot(N, p_to_c), 0.0) * max(dot(N, p_to_l), 0.0);
+    vec3 specular     = numerator / max(denominator, 0.001);  
+        
+    vec3 light_out = (kD * A / PI + specular) * radiance * max(n_dot_l, 0.0);
+
+    o_fragcolor = vec4(light_out*shadow, 1.0);
+    //o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
     //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
     //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);
     return;
 }
 
 // SHADOW FUNCTIONS
+// ================
 float shadowmap_pcf(vec3 s_projcoord, vec2 sm_texel, float sample_width, mat2 rot, float shadow_bias) {
     float shadow = 0.0;
     ${pcf_loop}
@@ -226,11 +259,13 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     vec2 sm_texel = 1.0/u_shadowmap_dims;
     float linear_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
 
-    /*// failsafe for sharp corners
+    /*
+    // failsafe for sharp corners
     // !!!!IMPORTANT - DELETE ONCE I REMOVE SQUARE COLUMNS
     //if(texture(u_shadow_atlas_tex, vec3(s_projcoord.xy, s_projcoord.z+0.00001)) >= 0.9)
     if(texture(u_shadow_atlas_linear_tex, s_projcoord.xy).x > linear_z)
-        return 1.0;*/
+        return 1.0;
+    */
 
     // perform shadowmap filtering
     float search_width = max(min_search,min(max_search, light_size * (light_z - u_light_znear) / min(eye_z, 1.0)));
@@ -245,60 +280,8 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     return shadow;
 }
 
-
-
-
-
-
-
-/*float I = 
-        step(0.0, dot(N, -l_to_p))
-        * step(u_light_o_angle-0.0001, cos_angle) 
-        * pow(
-              (cos_angle - u_light_o_angle) 
-            / (u_light_i_angle - u_light_o_angle)
-            , u_light_falloff);*/
-
-
-
-    /*
-// PBR stuff for later
-/*void main_extra() {
-    
-    vec3 F0 = vec3(0.04); 
-    F0 = mix(F0, A, RM[1]);
-	           
-    // reflectance equation
-    vec3 light_out = vec3(0.0);
-
-    // calculate per-light radiance
-    vec3 L = normalize(lightPositions[i] - WorldPos);
-    vec3 H = normalize(V + L);
-    float distance    = length(lightPositions[i] - WorldPos);
-    float attenuation = 1.0 / (distance * distance);
-    vec3 radiance     = lightColors[i] * attenuation;        
-    
-    // cook-torrance brdf
-    float NDF = DistributionGGX(N, H, roughness);        
-    float G   = GeometrySmith(N, V, L, roughness);      
-    vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);       
-    
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metallic;	  
-    
-    vec3 numerator    = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-    vec3 specular     = numerator / max(denominator, 0.001);  
-        
-    // add to outgoing radiance Lo
-    float NdotL = max(dot(N, L), 0.0);                
-    Lo += (kD * albedo / PI + specular) * radiance * NdotL;
-    
-    o_fragcolor = vec4(I*u_light_color*A, 1.0);
-}*/
-
-// pbr functions
+// PBR FUNCTIONS
+// =============
 // source: https://learnopengl.com/PBR/Lighting
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -332,5 +315,9 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     
     return ggx1 * ggx2;
 }
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}  
 
 `};

@@ -323,13 +323,14 @@ function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
 
 	// global uniform set
 	// ------------------
-	const t_coeff = 0.001;
+	const t_coeff = 0.0005;
 	gl.uniform1f(shader.uniforms.shadow_t, t*t_coeff);
 
 	// camera constants
 	const view_m:mat4 = pd.cam.get_view_matrix();
 	const inv_view_m:mat4 = M.mat4.create();
 	M.mat4.invert(inv_view_m, view_m);
+	// gl.uniformMatrix4fv(shader.uniforms.camera_view_to_world, false, inv_view_m);
 
 	// light iteration
 	// ---------------

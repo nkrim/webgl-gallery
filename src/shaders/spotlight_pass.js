@@ -21,6 +21,7 @@ export const spotlight_pass_l = {
         shadowmap_dims: 'u_shadowmap_dims',
         shadow_t: 'u_shadow_t',
 
+        // camera_view_to_world: 'u_camera_view_to_world',
         camera_view_to_light_view: 'u_camera_view_to_light_view',
         light_proj: 'u_light_proj',
 
@@ -107,6 +108,7 @@ uniform vec3 u_shadow_atlas_info;
 uniform float u_shadow_t;
 
 // matrix uniforms
+// uniform mat4 u_camera_view_to_world;
 uniform mat4 u_camera_view_to_light_view;
 uniform mat4 u_light_proj;
 
@@ -131,7 +133,7 @@ const float max_bias = 0.005;
 const float min_bias = 0.0001;
 
 // pcss constantas
-const float light_size = 20.0;
+const float light_size = 4.0;
 
 // FUNCTION DEFINITIONS
 // ====================
@@ -146,7 +148,7 @@ float random (vec2 uv) {
 }
 float shadowmap_pcf(vec3 s_projcoord, vec2 sm_resolution, float sample_width, float shadow_bias);
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_resolution, float region_scale);
-float shadowmap_pcss(vec3 s_projcoord, vec3 P, float light_z, float eye_z, float light_size, float shadow_bias);
+float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias, float rand);
 
 // PBR FUNCTIONS
 // -------------
@@ -190,9 +192,15 @@ void main() {
     P_from_light.xy += u_shadow_atlas_info.xy;
     P_from_light.xy /= u_shadow_atlas_info.z;
 
+    // calculate random cos_angle
+    vec3 rand_v = P*(vec3(1.0)-N);
+    float rand = random(rand_v.xy + rand_v.yz + rand_v.zx);
+    rand *= 2.0*PI;
+    rand += u_shadow_t;
+
     // calculate shadows
     float shadow_bias = -max(max_bias * (1.0 - n_dot_l), min_bias);
-    float shadow = shadowmap_pcss(P_from_light.xyz, P, P_from_light_view.z, P.z, light_size, shadow_bias);
+    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, light_size, shadow_bias, rand);
     if(shadow < 0.0001)
        discard;
     // o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
@@ -249,11 +257,8 @@ vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_texel, float
     if(blockers > 0) avg_blocker_depth /= f_blockers;
     return vec2(avg_blocker_depth, f_blockers);
 }
-float shadowmap_pcss(vec3 s_projcoord, vec3 P, float light_z, float eye_z, float light_size, float shadow_bias) {
+float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias, float rand) {
     // random rot
-    float rand = random(vec2(P.xy*P.yz));
-    rand *= 2.0*PI*rand;
-    rand += u_shadow_t;
     float cos_rot = cos(rand); float sin_rot = sin(rand);
     mat2 rot = mat2(cos_rot, -sin_rot, sin_rot, cos_rot);
 
@@ -279,7 +284,9 @@ float shadowmap_pcss(vec3 s_projcoord, vec3 P, float light_z, float eye_z, float
     if(blocker_res.y < 0.9 || blocker_res.x >= linear_z+shadow_bias)
         return 1.0;
 
-    float penumbra_size = min(max_penumbra, light_size * (linear_z - blocker_res.x) / blocker_res.x);
+    float penumbra_size = light_size * (linear_z - blocker_res.x) / blocker_res.x;
+    penumbra_size *= u_light_znear/linear_z;
+    penumbra_size = min(penumbra_size, max_penumbra);
     penumbra_size /= u_shadow_atlas_info.z; // normalize to atlas
     float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
     return shadow;

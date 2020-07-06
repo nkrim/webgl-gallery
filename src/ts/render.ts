@@ -282,7 +282,7 @@ function ssao_blur(gl:any, pd:any):void {
 
 /* SPOTLIGHT INT PASS
 ===================== */
-function spotlight_pass(gl:any, pd:any, room:Room):void {
+function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.light_val);
 
@@ -321,7 +321,18 @@ function spotlight_pass(gl:any, pd:any, room:Room):void {
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 5);
 
+	// global uniform set
+	// ------------------
+	const t_coeff = 0.001;
+	gl.uniform1f(shader.uniforms.shadow_t, t*t_coeff);
+
+	// camera constants
+	const view_m:mat4 = pd.cam.get_view_matrix();
+	const inv_view_m:mat4 = M.mat4.create();
+	M.mat4.invert(inv_view_m, view_m);
+
 	// light iteration
+	// ---------------
 	for(let light_index=0; light_index<room.spotlights.length; light_index++) {
 		const light = room.spotlights[light_index];
 		// shadowmap uniform set
@@ -332,9 +343,6 @@ function spotlight_pass(gl:any, pd:any, room:Room):void {
 		gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.map_dims);
 
 		// matrix uniform set
-		const view_m:mat4 = pd.cam.get_view_matrix();
-		const inv_view_m:mat4 = M.mat4.create();
-		M.mat4.invert(inv_view_m, view_m);
 		const c_view_to_l_view:mat4 = M.mat4.create();
 		M.mat4.mul(c_view_to_l_view, light.cam.get_view_matrix(), inv_view_m);
 		gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_view, false, c_view_to_l_view);
@@ -457,7 +465,7 @@ function fxaa_pass(gl:any, pd:any):void {
 
 /* FINAL RENDER FUNCTION
 ======================== */
-function render(gl:any, pd:any):void {
+function render(gl:any, pd:any, t:number):void {
 
 	// shadowmap pass
 	shadowmap_pass(gl, pd, pd.room_list[0]);
@@ -477,7 +485,7 @@ function render(gl:any, pd:any):void {
 	}
 
 	// spotlight pass
-	spotlight_pass(gl, pd, pd.room_list[0]);
+	spotlight_pass(gl, pd, pd.room_list[0], t);
 
 	// combine gbuffer contents on quad
 	quad_deferred_combine(gl, pd, !pd.settings.fxaa.enabled);

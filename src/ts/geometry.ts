@@ -95,11 +95,21 @@ export function generate_sphere_primitve(radial_segments:number = 16, vertical_s
 			indices.push(prev_disc_i+i, cur_disc_i+i,   cur_disc_i+i+1);
 			indices.push(prev_disc_i+i, cur_disc_i+i+1, prev_disc_i+i+1);
 		}
-		indices.push(prev_disc_i+radial_segments-1, cur_disc_i+radial_segments-1, cur_disc_i);
-		indices.push(prev_disc_i+radial_segments-1, cur_disc_i,                   prev_disc_i);
+		indices.push(cur_disc_i-1, cur_disc_i+radial_segments-1, cur_disc_i);
+		indices.push(cur_disc_i-1, cur_disc_i,                   prev_disc_i);
 		// set next values
 		prev_disc_i = cur_disc_i;
 	}
+	// build bottom pole disc
+	const bottom_index = prev_disc_i+radial_segments;
+	M.vec3.set(v, 0, -1, 0);
+	M.vec3.copy(n, v);
+	vertices.push(...v);
+	normals.push(...n)
+	for(let i=0; i<radial_segments-1; i++) {
+		indices.push(bottom_index, prev_disc_i+i+1, prev_disc_i+i);
+	}
+	indices.push(bottom_index, prev_disc_i, bottom_index-1);
 
 	return {
 		vertices: vertices,

@@ -19,6 +19,7 @@ export const spotlight_pass_l = {
 
         shadow_atlas_info: 'u_shadow_atlas_info',
         shadowmap_dims: 'u_shadowmap_dims',
+        shadow_t: 'u_shadow_t',
 
         camera_view_to_light_view: 'u_camera_view_to_light_view',
         light_proj: 'u_light_proj',
@@ -103,6 +104,7 @@ const vec2 pcss_samples[pcss_sample_count] = vec2[](${pcss_samples_string});
 // shadowmap uniforms
 uniform vec2 u_shadowmap_dims;
 uniform vec3 u_shadow_atlas_info;
+uniform float u_shadow_t;
 
 // matrix uniforms
 uniform mat4 u_camera_view_to_light_view;
@@ -140,11 +142,11 @@ float linearize_depth(float proj_depth, float znear, float zfar) {
     return (2.0*znear) / (zfar + znear - proj_depth*(zfar - znear));
 }
 float random (vec2 uv) {
-    return fract(sin(dot(uv.xy,vec2(12.9898,78.233)))*43758.5453123);
+    return fract(sin(dot(uv.xy,vec2(12.9898, 121.233)))*43758.5453123);
 }
 float shadowmap_pcf(vec3 s_projcoord, vec2 sm_resolution, float sample_width, float shadow_bias);
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_resolution, float region_scale);
-float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias);
+float shadowmap_pcss(vec3 s_projcoord, vec3 P, float light_z, float eye_z, float light_size, float shadow_bias);
 
 // PBR FUNCTIONS
 // -------------
@@ -172,7 +174,8 @@ void main() {
     if(n_dot_l < 0.0 || cos_angle < u_light_o_angle-0.0001) {
         discard;
     }
-	float I = n_dot_l * u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
+	float I = u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
+    // I *= n_dot_l;
 
     // shadowmapping
     // -------------
@@ -189,7 +192,7 @@ void main() {
 
     // calculate shadows
     float shadow_bias = -max(max_bias * (1.0 - n_dot_l), min_bias);
-    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, light_size, shadow_bias);
+    float shadow = shadowmap_pcss(P_from_light.xyz, P, P_from_light_view.z, P.z, light_size, shadow_bias);
     if(shadow < 0.0001)
        discard;
     // o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
@@ -203,8 +206,8 @@ void main() {
     // calculate per-light radiance
     vec3 p_to_c = normalize(-P);
     vec3 H = normalize(p_to_c + p_to_l);
-    float distance    = length(p_to_l_full);
-    float attenuation = 1.0 / (distance * distance);
+    // float distance    = length(p_to_l_full);
+    // float attenuation = 1.0 / (distance * distance);
     vec3 radiance     = I*u_light_color;//u_light_color * attenuation;        
     
     // cook-torrance brdf
@@ -246,9 +249,11 @@ vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_texel, float
     if(blockers > 0) avg_blocker_depth /= f_blockers;
     return vec2(avg_blocker_depth, f_blockers);
 }
-float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias) {
+float shadowmap_pcss(vec3 s_projcoord, vec3 P, float light_z, float eye_z, float light_size, float shadow_bias) {
     // random rot
-    float rand = 2.0*PI*random(s_projcoord.xy*100.0);
+    float rand = random(vec2(P.xy*P.yz));
+    rand *= 2.0*PI*rand;
+    rand += u_shadow_t;
     float cos_rot = cos(rand); float sin_rot = sin(rand);
     mat2 rot = mat2(cos_rot, -sin_rot, sin_rot, cos_rot);
 

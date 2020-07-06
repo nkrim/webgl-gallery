@@ -46,7 +46,7 @@ export const attribute_locs:any = {
 export const SPHERE_ID = 1;
 
 export const mesh_config:Map<number,Mesh> = new Map([
-	[SPHERE_ID, new Mesh(sphere_p.vertices, sphere_p.normals, [0.5,0.5,0.5], [0.1,1.0], sphere_p.indices)],
+	[SPHERE_ID, new Mesh(sphere_p.vertices, sphere_p.normals, [0.1,0.1,0.1], [0.1,1.0], sphere_p.indices)],
 ]);
 // contains vec2 of [element_count, buffer_offset_i]
 export let mesh_buffer_info:Map<number,vec2> = new Map();

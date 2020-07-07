@@ -81,14 +81,7 @@ void main() {
 	vec3 ambient_v = texture(u_ambient_tex, v_texcoord).xyz * texture(u_ssao_tex, v_texcoord).x;
 	vec3 final_c = (ambient_v + light_val) * obj_color;
 
-	// reinhard tonemapping
-	// final_c /= final_c + vec3(1.0);
-	// exposure tonemapping
-	// float exposure = 1.0;
-	// float lum_in = luminance(final_c);
-	// vec3 mapped_c = vec3(1.0) - exp(-final_c * exposure);
-	// float lum_out = luminance(mapped_c);
-
+	// aces tonemapping
 	final_c = aces_fitted(final_c);
 
 

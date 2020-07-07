@@ -222,6 +222,24 @@ function gen_screen_depth_texture(gl, filter_function, dimensions, shadows=false
 	return tx;
 }
 
+function load_image(gl, tx_obj, name, src) {
+	return new Promise(resolve => {
+		const image = new Image();
+		image.addEventListener('load', () => {
+			const tx = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, tx);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+			tx_obj.img[name] = tx;
+			resolve(tx);
+		});
+		image.src = src;
+	});
+}
+
 /* TEXTURE INITIALIZATION
 	- index lookup
 	0: gbuffer depth
@@ -271,6 +289,9 @@ function init_textures(gl) {
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, 1, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array([1,1,1,1])); 
 		tx_obj.white = tx;
 	}
+
+	// obj of image textures
+	tx_obj.img = {};
 
 
 	return tx_obj;
@@ -527,6 +548,7 @@ function main_init(gl, room_list) {
 								gen_ssao_blur_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_blur_l),
 		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, 
 								gen_spotlight_pass_f(
+									gl.canvas.clientWidth, gl.canvas.clientHeight,
 									gen_poisson_disc_samples(PCF_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT/2),
 									gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2)
 								), spotlight_pass_l),
@@ -737,9 +759,6 @@ function main() {
   	window.M = M;
   	window.pd = program_data;
 
-  	// RENDERING (FRAME TICK)
-  	gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
-
   	// SETTINGS BUTTONS INIT
   	S.init_settings_handlers(program_data);
 
@@ -758,6 +777,15 @@ function main() {
 			}
 		}
 	}
+
+	// ASYNC ACTIVITIES
+	const image_textures = [
+		load_image(gl, program_data.tx, 'blue_noise', './img/LDR_RGB1_3.png'),
+	];
+	const p = Promise.all(image_textures).finally(() => {
+		// RENDERING (FRAME TICK)
+  		gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
+	});
 }
 
 window.getFPS = function() {

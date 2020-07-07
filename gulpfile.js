@@ -16,9 +16,18 @@ function copy_to_dist() {
 		.pipe(dest('build'));
 }
 
+function copy_images() {
+	return src('src/img/*.{png,jpg}')
+		.pipe(dest('build/img'));
+}
+
 function clean() {
+	return del(['build/*.*', 'build/js']);
+}
+function clean_full() {
 	return del('build/*');
 }
 
 // EXPORTS
 exports.default = series(clean, parallel(copy_to_dist, pack));
+exports.full = series(clean_full, parallel(copy_to_dist, copy_images, pack));

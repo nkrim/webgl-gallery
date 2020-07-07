@@ -320,10 +320,13 @@ function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
 	gl.activeTexture(gl.TEXTURE5);	// shadow atlas texture (shadow sampler)
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 5);
+	gl.activeTexture(gl.TEXTURE6);	// blue noise texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
+	gl.uniform1i(shader.uniforms.blue_noise_tex, 6);
 
 	// global uniform set
 	// ------------------
-	const t_coeff = 0.0005;
+	const t_coeff = 1.0;//0.0005;
 	gl.uniform1f(shader.uniforms.shadow_t, t*t_coeff);
 
 	// camera constants

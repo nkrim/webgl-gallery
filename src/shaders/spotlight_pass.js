@@ -16,6 +16,7 @@ export const spotlight_pass_l = {
         rough_metal_tex: 'u_rough_metal_tex',
         shadow_atlas_linear_tex: 'u_shadow_atlas_linear_tex',
         shadow_atlas_tex: 'u_shadow_atlas_tex',
+        blue_noise_tex: 'u_blue_noise_tex',
 
         shadow_atlas_info: 'u_shadow_atlas_info',
         shadowmap_dims: 'u_shadowmap_dims',
@@ -51,7 +52,7 @@ void main() {
 `;
 
 // FRAGMENT SHADER
-export function gen_spotlight_pass_f(pcf_samples, pcss_samples) { 
+export function gen_spotlight_pass_f(screen_width, screen_height, pcf_samples, pcss_samples) { 
     const decimal_length = 8;
     const pretty_vec2 = function(a,b) { return `vec2(${pretty_float(a, decimal_length)},${pretty_float(b, decimal_length)})`; }
     // genereate pcf_samples string
@@ -94,6 +95,7 @@ uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
 uniform sampler2D u_shadow_atlas_linear_tex;
 uniform sampler2DShadow u_shadow_atlas_tex;
+uniform sampler2D u_blue_noise_tex;
 
 // shadowmap constants
 const int pcf_sample_count = ${PCF_POISSON_SAMPLE_COUNT};
@@ -133,7 +135,7 @@ const float max_bias = 0.005;
 const float min_bias = 0.0001;
 
 // pcss constantas
-const float light_size = 6.0;
+const float light_size = 8.0;
 
 // FUNCTION DEFINITIONS
 // ====================
@@ -166,6 +168,7 @@ void main() {
 	vec3 N = texture(u_norm_tex, v_texcoord).xyz;
 	vec3 A = texture(u_albedo_tex, v_texcoord).xyz;
 	vec2 RM = texture(u_rough_metal_tex, v_texcoord).xy;
+    vec3 R = texture(u_blue_noise_tex, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) + vec2(cos(u_shadow_t),sin(u_shadow_t))).rgb;
 
 	// spotlight intensity value
     // -------------------------
@@ -193,8 +196,8 @@ void main() {
     P_from_light.xy /= u_shadow_atlas_info.z;
 
     // calculate random cos_angle
-    vec3 rand_v = P*(vec3(1.0)-N);
-    float rand = random(rand_v.xy + rand_v.yz + rand_v.zx);
+    // vec3 rand_v = P*(vec3(1.0)-N);
+    float rand = R.r;//random(rand_v.xy + rand_v.yz + rand_v.zx);
     rand *= 2.0*PI;
     // rand += u_shadow_t;
 
@@ -232,6 +235,8 @@ void main() {
     vec3 specular     = numerator / max(denominator, 0.001);  
         
     vec3 light_out = (kD * A / PI + specular) * radiance * max(n_dot_l, 0.0);
+    light_out *= shadow;
+    light_out += R.rgb/255.0;
 
     o_fragcolor = vec4(light_out*shadow, 1.0);
     //o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);

@@ -39,11 +39,11 @@ export const room_config:Array<any> = [
 		models: [
 			new Model(MESH.SPHERE_ID, [0,2,-1.5], M.quat.create(), [1,1,1]),
 		],
-		ambient_color: [1.0,1.0,1.0], ambient_intensity: 0.1,
+		ambient_color: [1.0,1.0,1.0], ambient_intensity: 0.2,
 		spotlights: [
-			new Spotlight(new Camera([0, 6.5, 0], -Math.PI/2, 0), [1.0,0.95,0.9], 5.0, [60,90], 1, [1.0,100.0]),
+			new Spotlight(new Camera([0, 6.5, 0], -Math.PI/2, 0), [1.0,0.95,0.9], 5.0, [60,90], 1, [1.0,50.0]),
 			// new Spotlight(new Camera([3.1, 4, 1.75], -0.23441, Math.PI/4), [1.0,0.95,0.9], 10.0, [25,45], 1, [1.0,100.0]),
-			new Spotlight(new Camera([3.1, 0.25, 1.75], Math.PI/8, Math.PI/4), [1.0,0.95,0.9], 5.0, [35,65], 1, [1.0,100.0]),
+			new Spotlight(new Camera([3.1, 0.25, 1.75], Math.PI/8, Math.PI/4), [1.0,0.95,0.9], 5.0, [35,65], 1, [1.0,50.0]),
 			// new Spotlight(new Camera([3, 0.25, -0.05], Math.PI/8, Math.PI/2), [1.0,0.95,0.9], 5.0, [35,65], 1, [1.0,100.0]),
 		]
 	}

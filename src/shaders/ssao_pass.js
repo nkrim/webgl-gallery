@@ -1,6 +1,6 @@
 // TUNING CONSTANTS
 export const SSAO_KERNEL_SIZE = 32;
-export const SSAO_SAMPLE_RADIUS = '1.0';
+export const SSAO_SAMPLE_RADIUS = '0.5';
 
 // LOCATIONS
 export const ssao_pass_l = {

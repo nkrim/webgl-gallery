@@ -4,7 +4,9 @@ export const ssao_blur_l = {
 		vertex_pos: 'a_vert',
 	},
 	uniforms: {
+		time: 'u_time',
 		ssao_tex: 'u_ssao_tex',
+		blue_noise_tex: 'u_blue_noise_tex',
 	}
 }
 
@@ -31,6 +33,10 @@ in vec2 v_texcoord;
 
 // texture uniforms
 uniform sampler2D u_ssao_tex;
+uniform sampler2D u_blue_noise_tex;
+
+// uniforms
+uniform vec3 u_time;
 
 // out
 out vec4 o_fragcolor;
@@ -51,7 +57,11 @@ void main() {
 	}
 
 	let c =`
-	o_fragcolor = vec4(vec3(res/16.0), 1.0); // 16.0 because 4.0*4.0 for noise texture dimensions
+	vec3 noise = texture(u_blue_noise_tex, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) 
+		+ u_time.yz 
+		+ vec2(0.8293, 0.1243)).rgb;
+
+	o_fragcolor = vec4(vec3(res/16.0) + noise.rgb/255.0, 1.0); // 16.0 because 4.0*4.0 for noise texture dimensions
 }
 `
 	return a + b + c;

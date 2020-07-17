@@ -204,7 +204,7 @@ void main() {
 	final_uv += is_horiz ? vec2(0.0, final_blend) : vec2(final_blend, 0.0);
 	
 	vec3 final_sample = texture(u_screen_tex, final_uv).xyz;
-	o_fragcolor = vec4(vec3(final_sample), 1.0);
+	o_fragcolor = vec4(final_sample, 1.0);
 	// debug original
 	//o_fragcolor = vec4(original_pixel, 1.0);
 	// debug color

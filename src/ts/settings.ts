@@ -2,13 +2,13 @@ import { FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass';
 
 export const DEFAULT_SETTINGS:any = {
 	player: {
-		model: false,
+		model: true,
 	},
 	ssao: {
-		enabled: false,
+		enabled: true,
 	},
 	fxaa: {
-		enabled: false,
+		enabled: true,
 		quality_index: 0,
 	},
 }

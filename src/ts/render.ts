@@ -1,5 +1,5 @@
 import * as M from 'gl-matrix';
-import { vec3, vec4, mat4, quat } from 'gl-matrix';
+import { vec2, vec3, vec4, mat4, quat } from 'gl-matrix';
 import { Room } from './room';
 import { Spotlight } from './spotlight';
 import { Model } from './model';
@@ -196,7 +196,7 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.ssao_pass);
 
 	// set viewport
-	gl.viewport(0, 0, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
+	// gl.viewport(0, 0, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
 
 	// use program
 	const shader = pd.shaders.ssao_pass;
@@ -244,12 +244,12 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 
 /* SSAO BLUR
 ==================== */
-function ssao_blur(gl:any, pd:any):void {
+function ssao_blur(gl:any, pd:any, t3:vec3):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.ssao_blur);
 
 	// set viewport
-	gl.viewport(0, 0, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
+	// gl.viewport(0, 0, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
 
 	// use program
 	const shader = pd.shaders.ssao_blur;
@@ -268,6 +268,12 @@ function ssao_blur(gl:any, pd:any):void {
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_pass);
 	gl.uniform1i(shader.uniforms.ssao_tex, 0);
+	gl.activeTexture(gl.TEXTURE1);	// blue noise texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
+	gl.uniform1i(shader.uniforms.blue_noise_tex, 1);
+
+	// uniform set
+	gl.uniform3fv(shader.uniforms.time, t3);
 
 	// bind vao
 	gl.bindVertexArray(pd.vaos.quad);
@@ -282,7 +288,7 @@ function ssao_blur(gl:any, pd:any):void {
 
 /* SPOTLIGHT INT PASS
 ===================== */
-function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
+function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.light_val);
 
@@ -297,7 +303,9 @@ function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
 	gl.enable(gl.CULL_FACE);
 	gl.cullFace(gl.BACK);
 	gl.enable(gl.BLEND);
+	gl.blendEquation(gl.FUNC_ADD);
 	gl.blendFunc(gl.ONE, gl.ONE);
+	gl.blendColor(1,1,1,1);
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -323,11 +331,13 @@ function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
 	gl.activeTexture(gl.TEXTURE6);	// blue noise texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
 	gl.uniform1i(shader.uniforms.blue_noise_tex, 6);
+	gl.activeTexture(gl.TEXTURE7);	// blue noise 1D texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise_1d);
+	gl.uniform1i(shader.uniforms.blue_noise_tex_1d, 7);
 
 	// global uniform set
 	// ------------------
-	const t_coeff = 1.0;//0.0005;
-	gl.uniform1f(shader.uniforms.shadow_t, t*t_coeff);
+	gl.uniform3fv(shader.uniforms.time, t3);
 
 	// camera constants
 	const view_m:mat4 = pd.cam.get_view_matrix();
@@ -367,6 +377,9 @@ function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
 		gl.uniform1f(shader.uniforms.light_i_angle, light.i_angle);
 		gl.uniform1f(shader.uniforms.light_o_angle, light.o_angle);
 		gl.uniform1f(shader.uniforms.light_falloff, light.falloff);
+		gl.uniform1f(shader.uniforms.light_size, light.size);
+		gl.uniform1f(shader.uniforms.light_min_bias, light.bias_range[0]);
+		gl.uniform1f(shader.uniforms.light_max_bias, light.bias_range[1]);
 		gl.uniform1f(shader.uniforms.light_znear, light.zplanes[0]);
 		gl.uniform1f(shader.uniforms.light_zfar, light.zplanes[1]);
 
@@ -384,7 +397,7 @@ function spotlight_pass(gl:any, pd:any, room:Room, t:number):void {
 
 /* QUAD DRAWN GBUFFER COMBINE PASS
 ================================== */
-function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
+function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean, t3:vec3):void {
 	// set fbo
 	gl.bindFramebuffer(gl.FRAMEBUFFER, write_to_frame ? null : pd.fb.deferred_combine);
 
@@ -406,6 +419,7 @@ function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
 		shader.uniforms.view_m,
 		false,
 		pd.cam.get_view_matrix());
+	gl.uniform3fv(shader.uniforms.time, t3);
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
@@ -426,6 +440,9 @@ function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean):void {
 	gl.activeTexture(gl.TEXTURE5);	// light texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.light_val);
 	gl.uniform1i(shader.uniforms.light_tex, 5);
+	gl.activeTexture(gl.TEXTURE6);	// blue noise texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
+	gl.uniform1i(shader.uniforms.blue_noise_tex, 6);
 
 	// bind vao
 	gl.bindVertexArray(pd.vaos.quad);
@@ -470,6 +487,10 @@ function fxaa_pass(gl:any, pd:any):void {
 /* FINAL RENDER FUNCTION
 ======================== */
 function render(gl:any, pd:any, t:number):void {
+	// time adjustments
+	const t_coeff = 1.0;//0.0005;
+	t *= t_coeff;
+	const t3:vec3 = [t,Math.cos(t),Math.sin(t)];
 
 	// shadowmap pass
 	shadowmap_pass(gl, pd, pd.room_list[0]);
@@ -483,16 +504,16 @@ function render(gl:any, pd:any, t:number):void {
 	// ssao passes
 	if(pd.settings.ssao.enabled) {
 		// ssao pass
-		ssao_pass(gl, pd, proj_m)
+		ssao_pass(gl, pd, proj_m);
 		// ssao pass
-		ssao_blur(gl, pd)
+		ssao_blur(gl, pd, t3);
 	}
 
 	// spotlight pass
-	spotlight_pass(gl, pd, pd.room_list[0], t);
+	spotlight_pass(gl, pd, pd.room_list[0], t3);
 
 	// combine gbuffer contents on quad
-	quad_deferred_combine(gl, pd, !pd.settings.fxaa.enabled);
+	quad_deferred_combine(gl, pd, !pd.settings.fxaa.enabled, t3);
 
 	// fxaa post-process
 	if(pd.settings.fxaa.enabled)

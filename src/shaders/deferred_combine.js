@@ -4,12 +4,15 @@ export const deferred_combine_l = {
 	},
 	uniforms: {
 		view_m: 'u_view',
+		time: 'u_time',
+
 		pos_tex: 'u_pos_tex',
 		norm_tex: 'u_norm_tex',
 		color_tex: 'u_color_tex',
 		ambient_tex: 'u_ambient_tex',
 		ssao_tex: 'u_ssao_tex',
 		light_tex: 'u_light_tex',
+		blue_noise_tex: 'u_blue_noise_tex',
 	}
 }
 export const deferred_combine_v = `#version 300 es
@@ -30,7 +33,7 @@ void main() {
 }
 `;
 
-export const deferred_combine_f = `#version 300 es
+export function gen_deferred_combine_f(screen_width, screen_height) { return `#version 300 es
 precision mediump float;
 
 in vec2 v_texcoord;
@@ -42,6 +45,9 @@ uniform sampler2D u_color_tex;
 uniform sampler2D u_ambient_tex;
 uniform sampler2D u_ssao_tex;
 uniform sampler2D u_light_tex;
+uniform sampler2D u_blue_noise_tex;
+
+uniform vec3 u_time;
 
 out vec4 o_fragcolor;
 
@@ -76,6 +82,9 @@ void main() {
 	vec3 norm = texture(u_norm_tex, v_texcoord).xyz; 
 	vec3 obj_color = texture(u_color_tex, v_texcoord).xyz;
 	vec3 light_val = texture(u_light_tex, v_texcoord).xyz;
+	vec3 noise = texture(u_blue_noise_tex, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) 
+		+ u_time.yz 
+		+ vec2(0.5253, 0.72394)).rgb;
 
 	//vec3 diffuse_v = diffuse(norm, v_to_sun, sun_c);
 	vec3 ambient_v = texture(u_ambient_tex, v_texcoord).xyz * texture(u_ssao_tex, v_texcoord).x;
@@ -84,6 +93,8 @@ void main() {
 	// aces tonemapping
 	final_c = aces_fitted(final_c);
 
+	// blue noise dithering
+	final_c += noise.rgb/255.0;
 
 	// gamma encoding
 	final_c = pow(final_c, vec3(1.0/2.2)); 
@@ -91,4 +102,4 @@ void main() {
   	o_fragcolor = vec4(final_c, 1.0);
 }
 
-`;
+`;}

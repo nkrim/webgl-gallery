@@ -12,6 +12,8 @@ export class Spotlight {
 	i_angle:	number;
 	o_angle: 	number;
 	falloff:	number;
+	size:		number;
+	bias_range:	vec2;
 	zplanes: 	vec2;
 
 	// Constructed properties
@@ -25,6 +27,8 @@ export class Spotlight {
 					intensity: 				number,
 					inner_outer_angle_deg:	vec2,
 					falloff:				number,
+					size:					number,
+					bias_range:				vec2,	// reccomended value [0.0001,0.005]
 					zplanes:				vec2) {
 		// set properties
 		this.cam = cam;
@@ -35,7 +39,9 @@ export class Spotlight {
 		let o_angle_nocos = inner_outer_angle_deg[1]*DEG_TO_RAD;
 		this.o_angle = Math.cos(o_angle_nocos/2);
 		this.falloff = falloff;
-		this.zplanes = zplanes;
+		this.size = size;
+		this.bias_range = M.vec2.create(); M.vec2.copy(this.bias_range, bias_range);
+		this.zplanes = M.vec2.create(); M.vec2.copy(this.zplanes, zplanes);
 
 		// construct properties
 		this.proj_m = M.mat4.create();

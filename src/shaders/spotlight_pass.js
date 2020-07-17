@@ -17,10 +17,11 @@ export const spotlight_pass_l = {
         shadow_atlas_linear_tex: 'u_shadow_atlas_linear_tex',
         shadow_atlas_tex: 'u_shadow_atlas_tex',
         blue_noise_tex: 'u_blue_noise_tex',
+        blue_noise_tex_1d: 'u_blue_noise_tex_1d',
 
         shadow_atlas_info: 'u_shadow_atlas_info',
         shadowmap_dims: 'u_shadowmap_dims',
-        shadow_t: 'u_shadow_t',
+        time: 'u_time',
 
         // camera_view_to_world: 'u_camera_view_to_world',
         camera_view_to_light_view: 'u_camera_view_to_light_view',
@@ -33,6 +34,9 @@ export const spotlight_pass_l = {
         light_i_angle: 'u_light_i_angle',
         light_o_angle: 'u_light_o_angle',
         light_falloff: 'u_light_falloff',
+        light_size: 'u_light_size',
+        light_min_bias: 'u_light_min_bias',
+        light_max_bias: 'u_light_max_bias',
         light_znear: 'u_light_znear',
         light_zfar: 'u_light_zfar',
     }
@@ -96,6 +100,7 @@ uniform sampler2D u_rough_metal_tex;
 uniform sampler2D u_shadow_atlas_linear_tex;
 uniform sampler2DShadow u_shadow_atlas_tex;
 uniform sampler2D u_blue_noise_tex;
+uniform sampler2D u_blue_noise_tex_1d;
 
 // shadowmap constants
 const int pcf_sample_count = ${PCF_POISSON_SAMPLE_COUNT};
@@ -107,7 +112,7 @@ const vec2 pcss_samples[pcss_sample_count] = vec2[](${pcss_samples_string});
 // shadowmap uniforms
 uniform vec2 u_shadowmap_dims;
 uniform vec3 u_shadow_atlas_info;
-uniform float u_shadow_t;
+uniform vec3 u_time;
 
 // matrix uniforms
 // uniform mat4 u_camera_view_to_world;
@@ -122,6 +127,9 @@ uniform float u_light_int;
 uniform float u_light_i_angle;
 uniform float u_light_o_angle;
 uniform float u_light_falloff;
+uniform float u_light_size;
+uniform float u_light_min_bias;
+uniform float u_light_max_bias;
 uniform float u_light_znear;
 uniform float u_light_zfar;
 //uniform float u_light_fov;
@@ -131,11 +139,7 @@ out vec4 o_fragcolor;
 
 // constants
 const float PI = 3.14159265359;
-const float max_bias = 0.005;
-const float min_bias = 0.0001;
 
-// pcss constantas
-const float light_size = 8.0;
 
 // FUNCTION DEFINITIONS
 // ====================
@@ -168,7 +172,9 @@ void main() {
 	vec3 N = texture(u_norm_tex, v_texcoord).xyz;
 	vec3 A = texture(u_albedo_tex, v_texcoord).xyz;
 	vec2 RM = texture(u_rough_metal_tex, v_texcoord).xy;
-    vec3 R = texture(u_blue_noise_tex, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) + vec2(cos(u_shadow_t),sin(u_shadow_t))).rgb;
+    vec3 noise = texture(u_blue_noise_tex, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) 
+        + u_time.yz
+        + vec2(0.53840,0.34029)).rgb;
 
 	// spotlight intensity value
     // -------------------------
@@ -179,7 +185,7 @@ void main() {
     if(n_dot_l < 0.0 || cos_angle < u_light_o_angle-0.0001) {
         discard;
     }
-	float I = u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff);
+	float I = max(0.0, u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff));
     // I *= n_dot_l;
 
     // shadowmapping
@@ -197,13 +203,14 @@ void main() {
 
     // calculate random cos_angle
     // vec3 rand_v = P*(vec3(1.0)-N);
-    float rand = R.r;//random(rand_v.xy + rand_v.yz + rand_v.zx);
+    // float rand = random(rand_v.xy + rand_v.yz + rand_v.zx);
+    float rand = texture(u_blue_noise_tex_1d, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) + u_time.yz).r;
     rand *= 2.0*PI;
     // rand += u_shadow_t;
 
     // calculate shadows
-    float shadow_bias = -max(max_bias * (1.0 - n_dot_l), min_bias);
-    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, light_size, shadow_bias, rand);
+    float shadow_bias = -max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
+    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
     if(shadow < 0.0001)
        discard;
     // o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
@@ -236,9 +243,9 @@ void main() {
         
     vec3 light_out = (kD * A / PI + specular) * radiance * max(n_dot_l, 0.0);
     light_out *= shadow;
-    light_out += R.rgb/255.0;
+    light_out += noise.rgb/255.0;
 
-    o_fragcolor = vec4(light_out*shadow, 1.0);
+    o_fragcolor = vec4(light_out, 1.0);
     //o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
     //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
     //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);

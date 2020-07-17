@@ -10,7 +10,7 @@ import { attribute_locs, init_mesh_vao } from '../ts/mesh.ts';
 // Shaders
 // import { default_shader_v, default_shader_f } from './shaders/default_shader.js';
 import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from '../shaders/deferred_pass.js';
-import { deferred_combine_l, deferred_combine_v, deferred_combine_f } from '../shaders/deferred_combine.js';
+import { deferred_combine_l, deferred_combine_v, gen_deferred_combine_f } from '../shaders/deferred_combine.js';
 import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../shaders/ssao_pass.js';
 import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
 import { spotlight_pass_l, spotlight_pass_v, gen_spotlight_pass_f, 
@@ -262,7 +262,7 @@ function init_textures(gl) {
 		tx_obj.bufs.push(gen_screen_color_texture(gl, gl.LINEAR));
 	}
 	// ssao texture
-	M.vec2.set(dims, gl.canvas.clientWidth/2, gl.canvas.clientHeight/2);
+	M.vec2.set(dims, gl.canvas.clientWidth, gl.canvas.clientHeight);
 	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
@@ -541,11 +541,12 @@ function main_init(gl, room_list) {
 	let shaders = {
 		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
 		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
-		deferred_combine: 	init_shader_program(gl, deferred_combine_v, deferred_combine_f, deferred_combine_l),
+		deferred_combine: 	init_shader_program(gl, deferred_combine_v, 
+								gen_deferred_combine_f(gl.canvas.clientWidth, gl.canvas.clientHeight), deferred_combine_l),
 		ssao_pass: 			init_shader_program(gl, ssao_pass_v, 
-								gen_ssao_pass_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_pass_l),
+								gen_ssao_pass_f(gl.canvas.clientWidth, gl.canvas.clientHeight), ssao_pass_l),
 		ssao_blur: 			init_shader_program(gl, ssao_blur_v, 
-								gen_ssao_blur_f(gl.canvas.clientWidth/2, gl.canvas.clientHeight/2), ssao_blur_l),
+								gen_ssao_blur_f(gl.canvas.clientWidth, gl.canvas.clientHeight), ssao_blur_l),
 		spotlight_pass: 	init_shader_program(gl, spotlight_pass_v, 
 								gen_spotlight_pass_f(
 									gl.canvas.clientWidth, gl.canvas.clientHeight,
@@ -781,6 +782,7 @@ function main() {
 	// ASYNC ACTIVITIES
 	const image_textures = [
 		load_image(gl, program_data.tx, 'blue_noise', './img/LDR_RGB1_3.png'),
+		load_image(gl, program_data.tx, 'blue_noise_1d', './img/LDR_LLL1_3.png'),
 	];
 	const p = Promise.all(image_textures).finally(() => {
 		// RENDERING (FRAME TICK)

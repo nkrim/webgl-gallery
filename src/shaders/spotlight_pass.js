@@ -155,6 +155,7 @@ float random (vec2 uv) {
 float shadowmap_pcf(vec3 s_projcoord, vec2 sm_resolution, float sample_width, float shadow_bias);
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_resolution, float region_scale);
 float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias, float rand);
+float shadowmap_vsm(vec3 s_projcoord);
 
 // PBR FUNCTIONS
 // -------------
@@ -206,11 +207,11 @@ void main() {
     // float rand = random(rand_v.xy + rand_v.yz + rand_v.zx);
     float rand = texture(u_blue_noise_tex_1d, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) + u_time.yz).r;
     rand *= 2.0*PI;
-    // rand += u_shadow_t;
 
     // calculate shadows
-    float shadow_bias = -max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
-    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
+    // float shadow_bias = -max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
+    // float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
+    float shadow = shadowmap_vsm(P_from_light.xyz);
     if(shadow < 0.0001)
        discard;
     // o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
@@ -302,6 +303,31 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     penumbra_size /= u_shadow_atlas_info.z; // normalize to atlas
     float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
     return shadow;
+}
+float shadowmap_vsm(vec3 s_projcoord) {
+    float lin_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
+    vec2 sm_texel = 1.0/u_shadowmap_dims;
+    vec2 moment = vec2(0.0,0.0);
+    for(int i=-1; i<=1; i++) {
+        float offset_x = float(i)*sm_texel.x;
+        for(int j=-1; j<=1; j++) {
+            vec2 offset = vec2(offset_x, float(j)*sm_texel.y);
+            // moment += texture(u_shadow_atlas_linear_tex, s_projcoord.xy+offset).xy;
+            moment.x += texture(u_shadow_atlas_linear_tex, s_projcoord.xy+offset).x;
+        }
+    }
+    moment /= 9.0;
+
+    float dx = dFdx(moment.x);
+    float dy = dFdy(moment.x);
+    moment.y = moment.x*moment.x + 0.25*(dx*dx + dy*dy);
+    
+    float variance = moment.y - moment.x*moment.x;
+    variance = max(variance, 0.0001);
+    float znorm = lin_z - moment.x;
+    float znorm2 = znorm*znorm;
+    float p = variance/(variance + znorm2); 
+    return max(p, float(lin_z <= moment.x));
 }
 
 // PBR FUNCTIONS

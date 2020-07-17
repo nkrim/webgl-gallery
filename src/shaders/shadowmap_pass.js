@@ -34,9 +34,11 @@ uniform float u_zfar;
 out vec4 o_fragcolor;
 
 void main() { 
-	float z = (2.0 * u_znear) / (u_zfar + u_znear - gl_FragCoord.z*(u_zfar - u_znear));
-	o_fragcolor = vec4(z,0.0,0.0,1.0); 
-	// o_fragcolor = vec4(gl_FragCoord.z, 0.0, 0.0, 1.0);
+	float z = gl_FragCoord.z;
+	float lin_z = (2.0 * u_znear) / (u_zfar + u_znear - z*(u_zfar - u_znear));
+	o_fragcolor = vec4(lin_z, lin_z*lin_z, 0.0, 1.0); 
+	// o_fragcolor = vec4(lin_z,0.0,0.0,1.0); 
+	// o_fragcolor = vec4(z, 0.0, 0.0, 1.0);
 }
 `
 

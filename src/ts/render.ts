@@ -113,8 +113,8 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 	gl.cullFace(gl.BACK);
 
 	// easy reference constants
-	const tex_a = pd.tx.shadow_atlas.screen_tex_a;
-	const tex_b = pd.tx.shadow_atlas.screen_tex_b;
+	const tex_a = pd.tx.shadow_atlas.savsm_a;
+	const tex_b = pd.tx.shadow_atlas.savsm_b;
 
 	// X PASSES
 	// --------
@@ -124,13 +124,15 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 	
 	// perform recursive iters
 	const x_iters:number = Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[0]));
-	let writing_tex_a:boolean = false; 
+	let writing_tex_a:boolean = true; 
 	for(let i=0; i<x_iters; i++) {
 		// bind fb
 		gl.bindFramebuffer(gl.FRAMEBUFFER, writing_tex_a ? pd.fb.summedarea_a : pd.fb.summedarea_b);
 		// set input texture
 		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, writing_tex_a ? tex_b : tex_a);
+		gl.bindTexture(gl.TEXTURE_2D, i === 0 
+			? pd.tx.shadow_atlas.linear_tex
+			: (writing_tex_a ? tex_b : tex_a));
 		gl.uniform1i(shader.uniforms.in_tex, 0);
 		// set iter uniforms
 		gl.uniform1i(shader.uniforms.iter, i);
@@ -430,18 +432,21 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	gl.activeTexture(gl.TEXTURE3);	// rough/metal buffer
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[4]);
 	gl.uniform1i(shader.uniforms.rough_metal_tex, 3);
-	gl.activeTexture(gl.TEXTURE4);	// shadow atlas texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.screen_tex_active);
+	gl.activeTexture(gl.TEXTURE4);	// shadow atlas linear depth texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.linear_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 4);
-	gl.activeTexture(gl.TEXTURE5);	// shadow atlas texture (shadow sampler)
+	gl.activeTexture(gl.TEXTURE5);	// shadow atlas savsm texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
+	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 5);
+	gl.activeTexture(gl.TEXTURE6);	// shadow atlas texture (shadow sampler)
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
-	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 5);
-	gl.activeTexture(gl.TEXTURE6);	// blue noise texture
+	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 6);
+	gl.activeTexture(gl.TEXTURE7);	// blue noise texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
-	gl.uniform1i(shader.uniforms.blue_noise_tex, 6);
-	gl.activeTexture(gl.TEXTURE7);	// blue noise 1D texture
+	gl.uniform1i(shader.uniforms.blue_noise_tex, 7);
+	gl.activeTexture(gl.TEXTURE8);	// blue noise 1D texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise_1d);
-	gl.uniform1i(shader.uniforms.blue_noise_tex_1d, 7);
+	gl.uniform1i(shader.uniforms.blue_noise_tex_1d, 8);
 
 	// global uniform set
 	// ------------------

@@ -15,6 +15,7 @@ export const spotlight_pass_l = {
         albedo_tex: 'u_albedo_tex',
         rough_metal_tex: 'u_rough_metal_tex',
         shadow_atlas_linear_tex: 'u_shadow_atlas_linear_tex',
+        shadow_atlas_savsm_tex: 'u_shadow_atlas_savsm_tex',
         shadow_atlas_tex: 'u_shadow_atlas_tex',
         blue_noise_tex: 'u_blue_noise_tex',
         blue_noise_tex_1d: 'u_blue_noise_tex_1d',
@@ -98,6 +99,7 @@ uniform sampler2D u_norm_tex;
 uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
 uniform sampler2D u_shadow_atlas_linear_tex;
+uniform sampler2D u_shadow_atlas_savsm_tex;
 uniform sampler2DShadow u_shadow_atlas_tex;
 uniform sampler2D u_blue_noise_tex;
 uniform sampler2D u_blue_noise_tex_1d;
@@ -309,10 +311,10 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     vec2 min_texcoord = u_shadow_atlas_info.xy/u_shadow_atlas_info.z;
     vec2 max_texcoord = (1.0+u_shadow_atlas_info.xy)/u_shadow_atlas_info.z;
     vec2 summed_moments = 
-        texture(u_shadow_atlas_linear_tex, clamp(s_projcoord.xy + sm_texel*vec2(penumbra_size), min_texcoord, max_texcoord)).xy
-        - texture(u_shadow_atlas_linear_tex, clamp(s_projcoord.xy + sm_texel*vec2(-penumbra_size-1.0,penumbra_size), min_texcoord, max_texcoord)).xy
-        - texture(u_shadow_atlas_linear_tex, clamp(s_projcoord.xy + sm_texel*vec2(penumbra_size,-penumbra_size-1.0), min_texcoord, max_texcoord)).xy
-        + texture(u_shadow_atlas_linear_tex, clamp(s_projcoord.xy + sm_texel*vec2(-penumbra_size-1.0), min_texcoord, max_texcoord)).xy;
+        texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(penumbra_size), min_texcoord, max_texcoord)).xy
+        - texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(-penumbra_size-1.0,penumbra_size), min_texcoord, max_texcoord)).xy
+        - texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(penumbra_size,-penumbra_size-1.0), min_texcoord, max_texcoord)).xy
+        + texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(-penumbra_size-1.0), min_texcoord, max_texcoord)).xy;
     float num_texels = 2.0*penumbra_size + 1.0;
     num_texels *= num_texels;
     vec2 moment = summed_moments;//summed_moments/num_texels + vec2(0.5);
@@ -331,10 +333,10 @@ float shadowmap_vsm(vec3 s_projcoord) {
     float lin_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
     vec2 sm_texel = 1.0/(u_shadowmap_dims*u_shadow_atlas_info.z);
     vec2 summed_moments = 
-        texture(u_shadow_atlas_linear_tex, s_projcoord.xy).xy
-        - texture(u_shadow_atlas_linear_tex, s_projcoord.xy + sm_texel*vec2(-1.0,0.0)).xy
-        - texture(u_shadow_atlas_linear_tex, s_projcoord.xy + sm_texel*vec2(0.0,-1.0)).xy
-        + texture(u_shadow_atlas_linear_tex, s_projcoord.xy + sm_texel*vec2(-1.0)).xy;
+        texture(u_shadow_atlas_savsm_tex, s_projcoord.xy).xy
+        - texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(-1.0,0.0)).xy
+        - texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(0.0,-1.0)).xy
+        + texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(-1.0)).xy;
     vec2 moment = summed_moments/1.0 + vec2(0.5);
     return moment.x;
 

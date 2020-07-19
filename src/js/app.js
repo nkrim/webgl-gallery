@@ -273,9 +273,10 @@ function init_textures(gl) {
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
 	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.NEAREST, atlas_dims, true);
-	shadow_atlas.screen_tex_a = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
-	shadow_atlas.screen_tex_b = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
-	shadow_atlas.screen_tex_active = shadow_atlas.screen_tex_a;
+	shadow_atlas.linear_tex = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
+	shadow_atlas.savsm_a = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
+	shadow_atlas.savsm_b = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
+	shadow_atlas.savsm_active = shadow_atlas.savsm_a;
 	tx_obj.shadow_atlas = shadow_atlas;
 	// light accumulation buffer
 	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
@@ -585,14 +586,14 @@ function main_init(gl, room_list) {
 
   	// FRAMEBUFFER INIT
   	const fb_obj = {
-  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas.depth_tex, tx.shadow_atlas.screen_tex_a),
+  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas.depth_tex, tx.shadow_atlas.linear_tex),
 		deferred: 			init_deferred_framebuffer(gl, tx),
 		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
 		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
 		light_val: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.light_val),
 		deferred_combine: 	init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.screen_tex),
-		summedarea_a: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.screen_tex_a),
-		summedarea_b: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.screen_tex_b),
+		summedarea_a: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.savsm_a),
+		summedarea_b: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.savsm_b),
 	};
 
   	// SSAO DATA INIT

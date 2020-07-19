@@ -268,7 +268,7 @@ function init_textures(gl) {
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
 	const shadow_atlas = {
-		map_dims: [1024, 1024],
+		map_dims: [256, 256],
 		atlas_size: 2,
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);

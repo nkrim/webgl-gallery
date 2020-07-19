@@ -437,7 +437,7 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 4);
 	gl.activeTexture(gl.TEXTURE5);	// shadow atlas savsm texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
-	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 5);
+	gl.uniform1i(shader.uniforms.shadow_atlas_savsm_tex, 5);
 	gl.activeTexture(gl.TEXTURE6);	// shadow atlas texture (shadow sampler)
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 6);

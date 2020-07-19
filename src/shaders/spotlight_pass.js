@@ -157,7 +157,7 @@ float random (vec2 uv) {
 float shadowmap_pcf(vec3 s_projcoord, vec2 sm_resolution, float sample_width, float shadow_bias);
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_resolution, float region_scale);
 float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias, float rand);
-float shadowmap_vsm(vec3 s_projcoord);
+float shadowmap_savsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, float search_width);
 
 // PBR FUNCTIONS
 // -------------
@@ -212,8 +212,8 @@ void main() {
 
     // calculate shadows
     float shadow_bias = -max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
-    // float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
-    float shadow = shadowmap_vsm(P_from_light.xyz);
+    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
+    // float shadow = shadowmap_vsm(P_from_light.xyz, 3.0);
     if(shadow < 0.0001)
        discard;
     // o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
@@ -304,39 +304,22 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     penumbra_size *= u_light_znear/linear_z;
     penumbra_size = min(penumbra_size, max_penumbra);
     penumbra_size /= u_shadow_atlas_info.z; // normalize to atlas
+    penumbra_size *= u_shadowmap_dims.x/2048.0;
 
     //float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
-
-    // savsm implementation
-    vec2 min_texcoord = u_shadow_atlas_info.xy/u_shadow_atlas_info.z;
-    vec2 max_texcoord = (1.0+u_shadow_atlas_info.xy)/u_shadow_atlas_info.z;
-    vec2 summed_moments = 
-        texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(penumbra_size), min_texcoord, max_texcoord)).xy
-        - texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(-penumbra_size-1.0,penumbra_size), min_texcoord, max_texcoord)).xy
-        - texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(penumbra_size,-penumbra_size-1.0), min_texcoord, max_texcoord)).xy
-        + texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(-penumbra_size-1.0), min_texcoord, max_texcoord)).xy;
-    float num_texels = 2.0*penumbra_size + 1.0;
-    num_texels *= num_texels;
-    vec2 moment = summed_moments + 0.5;//summed_moments/num_texels + vec2(0.5);
-    // variance calc
-    float variance = moment.y - moment.x*moment.x;
-    variance = max(variance, 0.0001);
-    float znorm = linear_z - moment.x;
-    float znorm2 = znorm*znorm;
-    float p = variance/(variance + znorm2); 
-    float shadow = max(p, float(linear_z <= moment.x));
+    float shadow = shadowmap_savsm(s_projcoord, sm_texel, linear_z, penumbra_size);
 
     return shadow;
 }
-float shadowmap_vsm(vec3 s_projcoord) {
-    float lin_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
-    vec2 sm_texel = 1.0/(u_shadowmap_dims*u_shadow_atlas_info.z);
+float shadowmap_savsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, float search_width) {
     vec2 summed_moments = 
-        texture(u_shadow_atlas_savsm_tex, s_projcoord.xy).xy
-        - texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(-1.0,0.0)).xy
-        - texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(0.0,-1.0)).xy
-        + texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(-1.0)).xy;
-    vec2 moment = summed_moments/1.0 + vec2(0.5);
+        texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(search_width)).xy
+        - texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(-search_width-1.0,search_width)).xy
+        - texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(search_width,-search_width-1.0)).xy
+        + texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(-search_width-1.0)).xy;
+    float num_texels = 2.0*search_width + 1.0;
+    num_texels *= num_texels;
+    vec2 moment = summed_moments/num_texels + vec2(0.5);
     // return moment.x;
 
     float dx = dFdx(moment.x);
@@ -345,10 +328,10 @@ float shadowmap_vsm(vec3 s_projcoord) {
     
     float variance = moment.y - moment.x*moment.x;
     variance = max(variance, 0.0001);
-    float znorm = lin_z - moment.x;
+    float znorm = linear_z - moment.x;
     float znorm2 = znorm*znorm;
     float p = variance/(variance + znorm2); 
-    return max(p, float(lin_z <= moment.x));
+    return max(p, float(linear_z <= moment.x));
 }
 
 // PBR FUNCTIONS

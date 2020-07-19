@@ -50,7 +50,7 @@ void main() {
 `};
 
 // FRAGMENT SHADER
-export function gen_summedarea_pass_f(x_pass) { 
+export function gen_summedarea_pass_f(x_pass, first_pass=false) { 
 	const dim = x_pass ? 'x' : 'y';
 	return `#version 300 es
 precision mediump float;
@@ -65,10 +65,10 @@ uniform sampler2D u_in_tex;
 out vec4 o_fragcolor;
 
 void main() {
-	o_fragcolor = vec4(texture(u_in_tex, v_texcoord).xyz, 1.0);
+	o_fragcolor = vec4(texture(u_in_tex, v_texcoord).xyz${first_pass ? '-vec3(0.5)':''}, 1.0);
 	if(v_texcoord.${dim} < v_min_texcoord.${dim}) 
 		return;
-	o_fragcolor.xyz += texture(u_in_tex, v_add_texcoord).xyz;
+	o_fragcolor.xyz += texture(u_in_tex, v_add_texcoord).xyz${first_pass ? '-vec3(0.5)':''};
 }
 `;}
 

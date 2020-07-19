@@ -268,7 +268,7 @@ function init_textures(gl) {
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
 	const shadow_atlas = {
-		map_dims: [128, 128],
+		map_dims: [1024, 1024],
 		atlas_size: 1,
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
@@ -544,6 +544,9 @@ function main_init(gl, room_list) {
 	// SHADER INIT
 	let shaders = {
 		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
+		summedarea_first_x_pass: 	init_shader_program(gl, 
+								gen_summedarea_pass_v(true), 
+								gen_summedarea_pass_f(true, true), summedarea_pass_l),
 		summedarea_x_pass: 	init_shader_program(gl, 
 								gen_summedarea_pass_v(true), 
 								gen_summedarea_pass_f(true), summedarea_pass_l),

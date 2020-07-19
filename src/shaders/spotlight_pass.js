@@ -317,8 +317,7 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
         + texture(u_shadow_atlas_savsm_tex, clamp(s_projcoord.xy + sm_texel*vec2(-penumbra_size-1.0), min_texcoord, max_texcoord)).xy;
     float num_texels = 2.0*penumbra_size + 1.0;
     num_texels *= num_texels;
-    vec2 moment = summed_moments;//summed_moments/num_texels + vec2(0.5);
-    return moment.x;
+    vec2 moment = summed_moments + 0.5;//summed_moments/num_texels + vec2(0.5);
     // variance calc
     float variance = moment.y - moment.x*moment.x;
     variance = max(variance, 0.0001);
@@ -338,7 +337,7 @@ float shadowmap_vsm(vec3 s_projcoord) {
         - texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(0.0,-1.0)).xy
         + texture(u_shadow_atlas_savsm_tex, s_projcoord.xy + sm_texel*vec2(-1.0)).xy;
     vec2 moment = summed_moments/1.0 + vec2(0.5);
-    return moment.x;
+    // return moment.x;
 
     float dx = dFdx(moment.x);
     float dy = dFdy(moment.x);

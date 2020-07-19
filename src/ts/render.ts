@@ -119,7 +119,7 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 	// X PASSES
 	// --------
 	// use shader
-	let shader:any = pd.shaders.summedarea_x_pass;
+	let shader:any = pd.shaders.summedarea_first_x_pass; // should be changed after first iter
 	gl.useProgram(shader.prog);
 	
 	// perform recursive iters
@@ -157,6 +157,12 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 			gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 			// unbind vao
 			gl.bindVertexArray(null);
+		}
+
+		// swap shader program if finishing first iter
+		if(i === 0) {
+			shader = pd.shaders.summedarea_x_pass;
+			gl.useProgram(shader.prog);
 		}
 
 		// flip buffers
@@ -211,7 +217,7 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 
 	// set active shadowatlas
 	// reverse of writing_tex_a since it flips after last iter
-	pd.tx.shadow_atlas.screen_tex_active = writing_tex_a ? tex_b : tex_a;
+	pd.tx.shadow_atlas.savsm_active = writing_tex_a ? tex_b : tex_a;
 }
 
 /* GBUFFER PASS FOR DEFERRED SHADING

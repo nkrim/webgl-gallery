@@ -172,7 +172,7 @@ function init_vaos(gl, room_list) {
 	};
 }
 
-function gen_screen_color_texture(gl, filter_function, dimensions) {
+function gen_screen_color_texture(gl, filter_function, dimensions, internal_format=gl.RGBA16F) {
 	if(dimensions == undefined) {
 		dimensions = M.vec2.create();
 		M.vec2.set(dimensions, gl.canvas.clientWidth, gl.canvas.clientHeight);
@@ -184,7 +184,7 @@ function gen_screen_color_texture(gl, filter_function, dimensions) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	const level = 0;
-	const internalFormat = gl.RGBA16F;
+	const internalFormat = internal_format;
 	const width = dimensions[0];
 	const height = dimensions[1];
 	const border = 0;
@@ -274,8 +274,8 @@ function init_textures(gl) {
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
 	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.NEAREST, atlas_dims, true);
 	shadow_atlas.linear_tex = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
-	shadow_atlas.savsm_a = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
-	shadow_atlas.savsm_b = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
+	shadow_atlas.savsm_a = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims, gl.RGBA32F);
+	shadow_atlas.savsm_b = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims, gl.RGBA32F);
 	shadow_atlas.savsm_active = shadow_atlas.savsm_a;
 	tx_obj.shadow_atlas = shadow_atlas;
 	// light accumulation buffer

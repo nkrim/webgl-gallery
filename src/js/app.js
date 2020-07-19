@@ -268,13 +268,13 @@ function init_textures(gl) {
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
 	const shadow_atlas = {
-		map_dims: [256, 256],
-		atlas_size: 2,
+		map_dims: [128, 128],
+		atlas_size: 1,
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
 	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.NEAREST, atlas_dims, true);
-	shadow_atlas.screen_tex_a = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims);
-	shadow_atlas.screen_tex_b = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims);
+	shadow_atlas.screen_tex_a = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
+	shadow_atlas.screen_tex_b = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
 	shadow_atlas.screen_tex_active = shadow_atlas.screen_tex_a;
 	tx_obj.shadow_atlas = shadow_atlas;
 	// light accumulation buffer

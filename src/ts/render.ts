@@ -74,7 +74,7 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 
 		// DRAW ROOM		
 		gl.bindVertexArray(pd.vaos.room);		// BIND VAO
-		gl.drawElements(gl.TRIANGLES, room.mesh_count_i_walls, gl.UNSIGNED_SHORT, room.buffer_offset_i);
+		gl.drawElements(gl.TRIANGLES, room.mesh_count_i, gl.UNSIGNED_SHORT, room.buffer_offset_i);
 		gl.bindVertexArray(null);				// UNBIND VAO
 
 		// DRAW MODELS

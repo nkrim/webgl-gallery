@@ -335,8 +335,8 @@ float shadowmap_vsm(vec3 s_projcoord) {
         - texture(u_shadow_atlas_linear_tex, s_projcoord.xy + sm_texel*vec2(-1.0,0.0)).xy
         - texture(u_shadow_atlas_linear_tex, s_projcoord.xy + sm_texel*vec2(0.0,-1.0)).xy
         + texture(u_shadow_atlas_linear_tex, s_projcoord.xy + sm_texel*vec2(-1.0)).xy;
-    vec2 moment = summed_moments/1.0;
-
+    vec2 moment = summed_moments/1.0 + vec2(0.5);
+    return moment.x;
 
     float dx = dFdx(moment.x);
     float dy = dFdy(moment.x);

@@ -141,6 +141,9 @@ out vec4 o_fragcolor;
 
 // constants
 const float PI = 3.14159265359;
+const float penumbra_basis_resolution = 1024.0;
+const float vsm_min_variance = 0.00025;
+const float bleed_reduce = 0.2;
 
 
 // FUNCTION DEFINITIONS
@@ -189,7 +192,6 @@ void main() {
         discard;
     }
 	float I = max(0.0, u_light_int * pow((cos_angle - u_light_o_angle) / (u_light_i_angle - u_light_o_angle), u_light_falloff));
-    // I *= n_dot_l;
 
     // shadowmapping
     // -------------
@@ -205,20 +207,15 @@ void main() {
     P_from_light.xy /= u_shadow_atlas_info.z;
 
     // calculate random cos_angle
-    // vec3 rand_v = P*(vec3(1.0)-N);
-    // float rand = random(rand_v.xy + rand_v.yz + rand_v.zx);
     float rand = texture(u_blue_noise_tex_1d, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) + u_time.yz).r;
     rand *= 2.0*PI;
 
     // calculate shadows
-    float shadow_bias = -max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
+    float shadow_bias = 0.0; //-max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
     float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
     // float shadow = shadowmap_vsm(P_from_light.xyz, 3.0);
     if(shadow < 0.0001)
        discard;
-    // o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
-    // o_fragcolor = vec4(vec3(shadow/5.0), 1.0);
-    // return;
 
     // pbr rendering
     // -------------
@@ -250,9 +247,6 @@ void main() {
     light_out += noise.rgb/255.0;
 
     o_fragcolor = vec4(light_out, 1.0);
-    //o_fragcolor = vec4(I*A*u_light_color*shadow, 1.0);
-    //o_fragcolor = vec4(vec3(P_from_light.z-depth_sample), 1.0);
-    //o_fragcolor = vec4(P_from_light.xy, 0.0, 1.0);
     return;
 }
 
@@ -278,33 +272,21 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     float cos_rot = cos(rand); float sin_rot = sin(rand);
     mat2 rot = mat2(cos_rot, -sin_rot, sin_rot, cos_rot);
 
-    float max_penumbra = 0.1 * min(u_shadowmap_dims.x, u_shadowmap_dims.y);
-    float max_search = max_penumbra/5.0;
-    float min_search = 4.0;
-
     vec2 sm_texel = 1.0/(u_shadowmap_dims*u_shadow_atlas_info.z);
     float linear_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
 
-    /*
-    // failsafe for sharp corners
-    // !!!!IMPORTANT - DELETE ONCE I REMOVE SQUARE COLUMNS
-    //if(texture(u_shadow_atlas_tex, vec3(s_projcoord.xy, s_projcoord.z+0.00001)) >= 0.9)
-    if(texture(u_shadow_atlas_linear_tex, s_projcoord.xy).x > linear_z)
-        return 1.0;
-    */
-
     // perform shadowmap filtering
+    float min_search = 0.1;
+    float max_search = 30.0;
     float search_width = max(min_search,min(max_search, light_size * (light_z - u_light_znear) / min(eye_z, 1.0)));
-    search_width /= u_shadow_atlas_info.z; // normalize to atlas
+    search_width *= u_shadowmap_dims.x/penumbra_basis_resolution; // normalize to basis resolution
     vec2 blocker_res = pcss_blocker_distance(s_projcoord.xy, linear_z, sm_texel, search_width, rot);
     if(blocker_res.y < 0.9 || blocker_res.x >= linear_z+shadow_bias)
         return 1.0;
 
     float penumbra_size = light_size * (linear_z - blocker_res.x) / blocker_res.x;
-    penumbra_size *= u_light_znear/linear_z;
-    penumbra_size = min(penumbra_size, max_penumbra);
-    penumbra_size /= u_shadow_atlas_info.z; // normalize to atlas
-    penumbra_size *= u_shadowmap_dims.x/2048.0;
+    // penumbra_size *= u_light_znear/linear_z;
+    penumbra_size *= u_shadowmap_dims.x/penumbra_basis_resolution; // normalize to basis resolution
 
     //float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
     float shadow = shadowmap_savsm(s_projcoord, sm_texel, linear_z, penumbra_size);
@@ -327,11 +309,13 @@ float shadowmap_savsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, float sea
     moment.y += 0.25*(dx*dx + dy*dy);
     
     float variance = moment.y - moment.x*moment.x;
-    variance = max(variance, 0.0001);
+    variance = max(variance, vsm_min_variance);
     float znorm = linear_z - moment.x;
     float znorm2 = znorm*znorm;
     float p = variance/(variance + znorm2); 
-    return max(p, float(linear_z <= moment.x));
+    float p_max = max(p, float(linear_z <= moment.x));
+    // return clamp((p_max - bleed_reduce)/(1.0 - bleed_reduce), 0.0, 1.0); // linstep variant
+    return smoothstep(bleed_reduce, 1.0, p_max);
 }
 
 // PBR FUNCTIONS

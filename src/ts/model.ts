@@ -55,7 +55,7 @@ export class Model {
 	}
 
 	get_model_matrix(force:boolean = false):mat4 {
-		if(!force && this.same_old_values) {
+		if(!force && this.same_old_values()) {
 			return this._model_m;
 		}
 		// M.mat4.fromRotationTranslationScale(this._model_m, this.rot, this.pos, this.scale);

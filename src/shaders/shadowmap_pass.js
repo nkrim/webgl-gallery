@@ -36,7 +36,9 @@ out vec4 o_fragcolor;
 void main() { 
 	float z = gl_FragCoord.z;
 	float lin_z = (2.0 * u_znear) / (u_zfar + u_znear - z*(u_zfar - u_znear));
-	o_fragcolor = vec4(lin_z, lin_z*lin_z, 0.0, 1.0); 
+	float lin_z_2 = lin_z*lin_z;
+	lin_z -= 0.5; lin_z_2 -= 0.5;
+	o_fragcolor = vec4(lin_z, lin_z_2, 0.0, 1.0); 
 	// o_fragcolor = vec4(lin_z,0.0,0.0,1.0); 
 	// o_fragcolor = vec4(z, 0.0, 0.0, 1.0);
 }

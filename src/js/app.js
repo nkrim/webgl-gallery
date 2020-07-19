@@ -17,6 +17,7 @@ import { spotlight_pass_l, spotlight_pass_v, gen_spotlight_pass_f,
 		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
 import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders/shadowmap_pass.js';
+import { summedarea_pass_l, gen_summedarea_pass_v, gen_summedarea_pass_f } from '../shaders/summedarea_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -271,8 +272,10 @@ function init_textures(gl) {
 		atlas_size: 2,
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
-	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.LINEAR, atlas_dims, true);
-	shadow_atlas.screen_tex = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims);
+	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.NEAREST, atlas_dims, true);
+	shadow_atlas.screen_tex_a = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims);
+	shadow_atlas.screen_tex_b = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims);
+	shadow_atlas.screen_tex_active = shadow_atlas.screen_tex_a;
 	tx_obj.shadow_atlas = shadow_atlas;
 	// light accumulation buffer
 	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
@@ -540,6 +543,12 @@ function main_init(gl, room_list) {
 	// SHADER INIT
 	let shaders = {
 		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
+		summedarea_x_pass: 	init_shader_program(gl, 
+								gen_summedarea_pass_v(true), 
+								gen_summedarea_pass_f(true), summedarea_pass_l),
+		summedarea_y_pass: 	init_shader_program(gl, 
+								gen_summedarea_pass_v(false), 
+								gen_summedarea_pass_f(false), summedarea_pass_l),
 		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
 		deferred_combine: 	init_shader_program(gl, deferred_combine_v, 
 								gen_deferred_combine_f(gl.canvas.clientWidth, gl.canvas.clientHeight), deferred_combine_l),
@@ -576,12 +585,14 @@ function main_init(gl, room_list) {
 
   	// FRAMEBUFFER INIT
   	const fb_obj = {
-  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas.depth_tex, tx.shadow_atlas.screen_tex),
+  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas.depth_tex, tx.shadow_atlas.screen_tex_a),
 		deferred: 			init_deferred_framebuffer(gl, tx),
 		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
 		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
 		light_val: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.light_val),
 		deferred_combine: 	init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.screen_tex),
+		summedarea_a: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.screen_tex_a),
+		summedarea_b: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.screen_tex_b),
 	};
 
   	// SSAO DATA INIT

@@ -123,7 +123,9 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 	gl.useProgram(shader.prog);
 	
 	// perform recursive iters
-	const x_iters:number = Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[0]));
+	if(!pd.x_iters && pd.x_iters !== 0)
+		pd.x_iters = Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[0]));;
+	const x_iters:number = pd.x_iters;;//Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[0]));
 	let writing_tex_a:boolean = true; 
 	for(let i=0; i<x_iters; i++) {
 		// bind fb
@@ -175,7 +177,9 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 	shader = pd.shaders.summedarea_y_pass;
 	gl.useProgram(shader.prog);
 	// perform recursive iters
-	const y_iters:number = Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[1]));
+	if(!pd.y_iters && pd.y_iters !== 0)
+		pd.y_iters = Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[1]));;
+	const y_iters:number = pd.y_iters;;//Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[1]));
 	for(let i=0; i<y_iters; i++) {
 		// bind fb
 		gl.bindFramebuffer(gl.FRAMEBUFFER, writing_tex_a ? pd.fb.summedarea_a : pd.fb.summedarea_b);
@@ -218,6 +222,38 @@ function summedarea_pass(gl:any, pd:any, room:Room):void {
 	// set active shadowatlas
 	// reverse of writing_tex_a since it flips after last iter
 	pd.tx.shadow_atlas.savsm_active = writing_tex_a ? tex_b : tex_a;
+}
+
+/* UINT TEX DEBUG
+================= */
+function uint_tex_debug(gl:any, pd:any) {
+	// set fbo
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	// use program
+	const shader = pd.shaders.uint_tex_debug;
+	gl.useProgram(shader.prog);
+
+	// clear constants
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);  
+	gl.clearDepth(1.0);                 
+	gl.disable(gl.DEPTH_TEST);          
+	gl.enable(gl.CULL_FACE);
+	gl.cullFace(gl.BACK);
+	// clear
+	gl.clear(gl.COLOR_BUFFER_BIT);
+
+	// texture set
+	gl.activeTexture(gl.TEXTURE0);	// ssao texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
+	gl.uniform1i(shader.uniforms.in_tex, 0);
+
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
+	// draw
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
 }
 
 /* GBUFFER PASS FOR DEFERRED SHADING
@@ -441,9 +477,15 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	gl.activeTexture(gl.TEXTURE4);	// shadow atlas linear depth texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.linear_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 4);
-	gl.activeTexture(gl.TEXTURE5);	// shadow atlas savsm texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
-	gl.uniform1i(shader.uniforms.shadow_atlas_savsm_tex, 5);
+	if(pd.savsm_uint) {
+		gl.activeTexture(gl.TEXTURE5);	// shadow atlas savsm uint texture
+		gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
+		gl.uniform1i(shader.uniforms.shadow_atlas_savsm_uint_tex, 5);
+	} else {
+		gl.activeTexture(gl.TEXTURE5);	// shadow atlas savsm texture
+		gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
+		gl.uniform1i(shader.uniforms.shadow_atlas_savsm_tex, 5);
+	}
 	gl.activeTexture(gl.TEXTURE6);	// shadow atlas texture (shadow sampler)
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 6);
@@ -473,7 +515,8 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 			light_index % pd.tx.shadow_atlas.atlas_size,
 			Math.floor(light_index / pd.tx.shadow_atlas.atlas_size),
 			pd.tx.shadow_atlas.atlas_size);
-		gl.uniform2fv(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.map_dims);
+		gl.uniform3f(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.map_dims[0], pd.tx.shadow_atlas.map_dims[1], 
+			pd.tx.shadow_atlas.map_dims[0]*pd.tx.shadow_atlas.map_dims[1]);
 
 		// matrix uniform set
 		const c_view_to_l_view:mat4 = M.mat4.create();
@@ -593,7 +636,7 @@ function fxaa_pass(gl:any, pd:any):void {
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.screen_tex);
-	gl.uniform1i(shader.uniforms.scren_tex, 0);
+	gl.uniform1i(shader.uniforms.screen_tex, 0);
 
 	// bind vao
 	gl.bindVertexArray(pd.vaos.quad);
@@ -641,6 +684,8 @@ function render(gl:any, pd:any, t:number):void {
 	if(pd.settings.fxaa.enabled)
 		fxaa_pass(gl, pd);
 
+	// tex debug
+	// uint_tex_debug(gl, pd);
 }
 
 // EXPORTS

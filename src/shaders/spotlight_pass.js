@@ -1,4 +1,5 @@
 import { pretty_float } from '../ts/utils.ts';
+import { SAVSM_UINT } from '../js/app.js';
 
 // CONSTANTS
 export const PCF_POISSON_SAMPLE_COUNT = 32;
@@ -16,6 +17,7 @@ export const spotlight_pass_l = {
         rough_metal_tex: 'u_rough_metal_tex',
         shadow_atlas_linear_tex: 'u_shadow_atlas_linear_tex',
         shadow_atlas_savsm_tex: 'u_shadow_atlas_savsm_tex',
+        shadow_atlas_savsm_uint_tex: 'u_shadow_atlas_savsm_uint_tex',
         shadow_atlas_tex: 'u_shadow_atlas_tex',
         blue_noise_tex: 'u_blue_noise_tex',
         blue_noise_tex_1d: 'u_blue_noise_tex_1d',
@@ -89,6 +91,8 @@ export function gen_spotlight_pass_f(screen_width, screen_height, pcf_samples, p
     return `#version 300 es
 precision highp float;
 precision highp sampler2DShadow;
+precision highp int;
+precision highp usampler2D;
 
 // varyings
 in vec2 v_texcoord;
@@ -100,6 +104,7 @@ uniform sampler2D u_albedo_tex;
 uniform sampler2D u_rough_metal_tex;
 uniform sampler2D u_shadow_atlas_linear_tex;
 uniform sampler2D u_shadow_atlas_savsm_tex;
+uniform usampler2D u_shadow_atlas_savsm_uint_tex;
 uniform sampler2DShadow u_shadow_atlas_tex;
 uniform sampler2D u_blue_noise_tex;
 uniform sampler2D u_blue_noise_tex_1d;
@@ -112,7 +117,7 @@ const vec2 pcf_samples[pcf_sample_count] = vec2[](${pcf_samples_string});
 const vec2 pcss_samples[pcss_sample_count] = vec2[](${pcss_samples_string});
 
 // shadowmap uniforms
-uniform vec2 u_shadowmap_dims;
+uniform vec3 u_shadowmap_dims;
 uniform vec3 u_shadow_atlas_info;
 uniform vec3 u_time;
 
@@ -161,6 +166,7 @@ float shadowmap_pcf(vec3 s_projcoord, vec2 sm_resolution, float sample_width, fl
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_resolution, float region_scale);
 float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias, float rand);
 float shadowmap_savsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, float search_width);
+float shadowmap_savsm_uint(vec3 s_projcoord, vec2 sm_texel, float linear_z, float search_width);
 
 // PBR FUNCTIONS
 // -------------
@@ -211,11 +217,13 @@ void main() {
     rand *= 2.0*PI;
 
     // calculate shadows
-    float shadow_bias = 0.0; //-max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
+    float shadow_bias = 0.0;//-max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
     float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
-    // float shadow = shadowmap_vsm(P_from_light.xyz, 3.0);
     if(shadow < 0.0001)
        discard;
+    // shadow = clamp(shadow, 0.0, 1.0);
+    // o_fragcolor = vec4(vec3(shadow), 1.0);
+    // return;
 
     // pbr rendering
     // -------------
@@ -245,6 +253,8 @@ void main() {
     vec3 light_out = (kD * A / PI + specular) * radiance * max(n_dot_l, 0.0);
     light_out *= shadow;
     light_out += noise.rgb/255.0;
+    // !!!! EXPERIMENTAL LINE (REMOVE SUBTRACTIVE ASPECT);
+    light_out = max(light_out, 0.0);
 
     o_fragcolor = vec4(light_out, 1.0);
     return;
@@ -258,6 +268,7 @@ float shadowmap_pcf(vec3 s_projcoord, vec2 sm_texel, float sample_width, mat2 ro
     return shadow/(float(pcf_sample_count));
 }
 vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_texel, float region_scale, mat2 rot) {
+    // average blocker distance 
     int blockers = 0;
     float avg_blocker_depth = 0.0;
     vec2 offset;
@@ -272,7 +283,7 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     float cos_rot = cos(rand); float sin_rot = sin(rand);
     mat2 rot = mat2(cos_rot, -sin_rot, sin_rot, cos_rot);
 
-    vec2 sm_texel = 1.0/(u_shadowmap_dims*u_shadow_atlas_info.z);
+    vec2 sm_texel = 1.0/(u_shadowmap_dims.xy*u_shadow_atlas_info.z);
     float linear_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
 
     // perform shadowmap filtering
@@ -283,13 +294,16 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     vec2 blocker_res = pcss_blocker_distance(s_projcoord.xy, linear_z, sm_texel, search_width, rot);
     if(blocker_res.y < 0.9 || blocker_res.x >= linear_z+shadow_bias)
         return 1.0;
+    // return blocker_res.y;
 
     float penumbra_size = light_size * (linear_z - blocker_res.x) / blocker_res.x;
     // penumbra_size *= u_light_znear/linear_z;
     penumbra_size *= u_shadowmap_dims.x/penumbra_basis_resolution; // normalize to basis resolution
 
-    //float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
-    float shadow = shadowmap_savsm(s_projcoord, sm_texel, linear_z, penumbra_size);
+    // float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
+    float shadow = ${SAVSM_UINT 
+        ?'shadowmap_savsm_uint(s_projcoord, sm_texel, linear_z, penumbra_size)'
+        :'shadowmap_savsm(s_projcoord, sm_texel, linear_z, penumbra_size)'};
 
     return shadow;
 }
@@ -302,8 +316,48 @@ float shadowmap_savsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, float sea
     float num_texels = 2.0*search_width + 1.0;
     num_texels *= num_texels;
     vec2 moment = summed_moments/num_texels + vec2(0.5);
-    // return moment.x;
 
+    float dx = dFdx(moment.x);
+    float dy = dFdy(moment.x);
+    moment.y += 0.25*(dx*dx + dy*dy);
+    
+    float variance = moment.y - moment.x*moment.x;
+    variance = max(variance, vsm_min_variance);
+    float znorm = linear_z - moment.x;
+    float znorm2 = znorm*znorm;
+    float p = variance/(variance + znorm2); 
+    float p_max = max(p, float(linear_z <= moment.x));
+    // return clamp((p_max - bleed_reduce)/(1.0 - bleed_reduce), 0.0, 1.0); // linstep variant
+    return smoothstep(bleed_reduce, 1.0, p_max);
+}
+vec4 bilinear_uint_tex(vec2 texcoord, vec2 sm_texel) {
+    vec2 texel_index = texcoord / sm_texel;
+    vec2 texel_fract = fract(texel_index);
+    vec2 texel_offset = sm_texel * 2.0*(step(0.5, texel_fract) - vec2(0.5));
+
+    vec4 sample0 = vec4(texture(u_shadow_atlas_savsm_uint_tex, texcoord));
+    vec4 sample1 = vec4(texture(u_shadow_atlas_savsm_uint_tex, texcoord + vec2(texel_offset.x, 0.0)));
+    vec4 sample2 = vec4(texture(u_shadow_atlas_savsm_uint_tex, texcoord + vec2(0.0, texel_offset.y)));
+    vec4 sample3 = vec4(texture(u_shadow_atlas_savsm_uint_tex, texcoord + texel_offset));
+
+    vec2 texel_mix = abs(vec2(0.5) - texel_fract);
+    vec4 mix0 = mix(sample0, sample1, texel_mix.x);
+    vec4 mix1 = mix(sample2, sample3, texel_mix.x);
+    return mix(mix0, mix1, texel_mix.y);
+}
+float shadowmap_savsm_uint(vec3 s_projcoord, vec2 sm_texel, float linear_z, float search_width) {
+    vec4 first_sampled_moment = bilinear_uint_tex(s_projcoord.xy + sm_texel*vec2(search_width), sm_texel);
+    float uint_scale = float(first_sampled_moment.w);
+
+    vec2 summed_moments = first_sampled_moment.xy
+        - bilinear_uint_tex(s_projcoord.xy + sm_texel*vec2(-search_width-1.0,search_width), sm_texel).xy
+        - bilinear_uint_tex(s_projcoord.xy + sm_texel*vec2(search_width,-search_width-1.0), sm_texel).xy
+        + bilinear_uint_tex(s_projcoord.xy + sm_texel*vec2(-search_width-1.0), sm_texel).xy;
+    float num_texels = 2.0*search_width + 1.0;
+    num_texels *= num_texels;
+    vec2 moment = vec2(summed_moments)/num_texels;
+    moment /= uint_scale;
+    
     float dx = dFdx(moment.x);
     float dy = dFdy(moment.x);
     moment.y += 0.25*(dx*dx + dy*dy);

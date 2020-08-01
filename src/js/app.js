@@ -23,7 +23,7 @@ import { uint_tex_debug_l, uint_tex_debug_v, uint_tex_debug_f } from '../shaders
 
 /* GLOBAL INIT CONSTANTS
 ======================== */
-export const SAVSM_UINT = true;
+export const SAVSM_UINT = false;
 
 /* INITIALIZING FUNCTIONS
 ========================= */

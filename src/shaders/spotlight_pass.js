@@ -294,7 +294,6 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     vec2 blocker_res = pcss_blocker_distance(s_projcoord.xy, linear_z, sm_texel, search_width, rot);
     if(blocker_res.y < 0.9 || blocker_res.x >= linear_z+shadow_bias)
         return 1.0;
-    // return blocker_res.y;
 
     float penumbra_size = light_size * (linear_z - blocker_res.x) / blocker_res.x;
     // penumbra_size *= u_light_znear/linear_z;
@@ -355,8 +354,8 @@ float shadowmap_savsm_uint(vec3 s_projcoord, vec2 sm_texel, float linear_z, floa
         + bilinear_uint_tex(s_projcoord.xy + sm_texel*vec2(-search_width-1.0), sm_texel).xy;
     float num_texels = 2.0*search_width + 1.0;
     num_texels *= num_texels;
-    vec2 moment = vec2(summed_moments)/num_texels;
-    moment /= uint_scale;
+    vec2 moment = vec2(summed_moments)/(num_texels*uint_scale);
+    // moment /= uint_scale;
     
     float dx = dFdx(moment.x);
     float dy = dFdy(moment.x);

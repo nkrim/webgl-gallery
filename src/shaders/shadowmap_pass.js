@@ -31,13 +31,17 @@ precision mediump float;
 uniform float u_znear;
 uniform float u_zfar;
 
+const float esm_pos_constant = 30.0;
+const float esm_neg_constant = 10.0;
+
+// out float o_fragcolor;
 out vec4 o_fragcolor;
 
 void main() { 
 	float z = gl_FragCoord.z;
 	float lin_z = (2.0 * u_znear) / (u_zfar + u_znear - z*(u_zfar - u_znear));
-	float lin_z_2 = lin_z*lin_z;
-	o_fragcolor = vec4(lin_z, lin_z_2, 0.0, 1.0); 
+	// o_fragcolor = lin_z;
+	o_fragcolor = vec4(lin_z, 0.0, 0.0, 1.0); 
 	// o_fragcolor = vec4(lin_z,0.0,0.0,1.0); 
 	// o_fragcolor = vec4(z, 0.0, 0.0, 1.0);
 }

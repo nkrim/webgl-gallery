@@ -17,13 +17,7 @@ import { spotlight_pass_l, spotlight_pass_v, gen_spotlight_pass_f,
 		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
 import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders/shadowmap_pass.js';
-import { summedarea_pass_l, gen_summedarea_pass_v, gen_summedarea_pass_f } from '../shaders/summedarea_pass.js';
-import { summedarea_uint_pass_l, gen_summedarea_uint_pass_v, gen_summedarea_uint_pass_f } from '../shaders/summedarea_uint_pass.js';
-import { uint_tex_debug_l, uint_tex_debug_v, uint_tex_debug_f } from '../shaders/uint_tex_debug.js';
-
-/* GLOBAL INIT CONSTANTS
-======================== */
-export const SAVSM_UINT = false;
+import { evsm_pass_l, evsm_pass_v, evsm_pass_f } from '../shaders/evsm_pass.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -274,22 +268,13 @@ function init_textures(gl) {
 	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
 	// shadow atlas
 	const shadow_atlas = {
-		map_dims: [512, 512],
-		atlas_size: 2,
+		map_dims: [1024, 1024],
+		atlas_size: 1,
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
 	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.NEAREST, atlas_dims, true);
-	shadow_atlas.linear_tex = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims, gl.RGBA16F);
-	if(SAVSM_UINT) {
-		shadow_atlas.savsm_a = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims, gl.RGBA32UI, gl.RGBA_INTEGER, gl.UNSIGNED_INT);//gl.LINEAR, atlas_dims, gl.RGBA32F);
-		shadow_atlas.savsm_b = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims, gl.RGBA32UI, gl.RGBA_INTEGER, gl.UNSIGNED_INT);//gl.LINEAR, atlas_dims, gl.RGBA32F);
-		// shadow_atlas.savsm_debug = gen_screen_color_texture(gl, gl.NEAREST, atlas_dims);
-	}
-	else {
-		shadow_atlas.savsm_a = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims, gl.RGBA32F);
-		shadow_atlas.savsm_b = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims, gl.RGBA32F);
-	}
-	shadow_atlas.savsm_active = shadow_atlas.savsm_a;
+	shadow_atlas.linear_tex = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims, gl.RGBA32F);//gl.R32F, gl.RED);
+	shadow_atlas.evsm_tex = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims, gl.RGBA32F);
 	tx_obj.shadow_atlas = shadow_atlas;
 	// light accumulation buffer
 	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
@@ -560,7 +545,7 @@ function main_init(gl, room_list) {
 	// SHADER INIT
 	let shaders = {
 		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
-		// uint_tex_debug: 	init_shader_program(gl, uint_tex_debug_v, uint_tex_debug_f, uint_tex_debug_l),
+		evsm_pass: 			init_shader_program(gl, evsm_pass_v, evsm_pass_f, evsm_pass_l),
 		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
 		deferred_combine: 	init_shader_program(gl, deferred_combine_v, 
 								gen_deferred_combine_f(gl.canvas.clientWidth, gl.canvas.clientHeight), deferred_combine_l),
@@ -583,31 +568,6 @@ function main_init(gl, room_list) {
 					fxaa_pass_l),
 			],
 	};
-	if(SAVSM_UINT) {
-		shaders.summedarea_first_x_pass = init_shader_program(gl, 
-											gen_summedarea_uint_pass_v(true), 
-											gen_summedarea_uint_pass_f(tx.shadow_atlas.map_dims, true, true), 
-											summedarea_uint_pass_l);
-		shaders.summedarea_x_pass = init_shader_program(gl, 
-											gen_summedarea_uint_pass_v(true), 
-											gen_summedarea_uint_pass_f(tx.shadow_atlas.map_dims, true), 
-											summedarea_uint_pass_l);
-		shaders.summedarea_y_pass = init_shader_program(gl, 
-											gen_summedarea_uint_pass_v(false), 
-											gen_summedarea_uint_pass_f(tx.shadow_atlas.map_dims, false), 
-											summedarea_uint_pass_l);
-	}
-	else {
-		shaders.summedarea_first_x_pass = init_shader_program(gl, 
-											gen_summedarea_pass_v(true), 
-											gen_summedarea_pass_f(true, true), summedarea_pass_l);
-		shaders.summedarea_x_pass =	init_shader_program(gl, 
-											gen_summedarea_pass_v(true), 
-											gen_summedarea_pass_f(true), summedarea_pass_l);
-		shaders.summedarea_y_pass =	init_shader_program(gl, 
-											gen_summedarea_pass_v(false), 
-											gen_summedarea_pass_f(false), summedarea_pass_l);
-	}
 
 	// BUFFER INIT
 	const vaos = init_vaos(gl, room_list);
@@ -621,6 +581,7 @@ function main_init(gl, room_list) {
   	// FRAMEBUFFER INIT
   	const fb_obj = {
   		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas.depth_tex, tx.shadow_atlas.linear_tex),
+  		evsm_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.evsm_tex),
 		deferred: 			init_deferred_framebuffer(gl, tx),
 		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
 		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
@@ -799,10 +760,6 @@ function main() {
   	// PROGRAM INIT
   	let program_data = main_init(gl, room_list);
   	console.log(program_data);
-
-  	// DEBUG FOR SAVSM_UINT
-  	program_data.savsm_uint = SAVSM_UINT;
-
 
 
   	/* TEMP DEBUG SETTING */

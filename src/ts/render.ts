@@ -23,6 +23,14 @@ function get_projection(gl:any, fov:number):mat4 {
 	return projection_m;
 }
 
+function set_textures(gl:any, texture_map:Array<[number,WebGLTexture]>):void {
+	for(let i=0; i<texture_map.length; i++) {
+		gl.activeTexture(gl.TEXTURE0+i);
+		gl.bindTexture(gl.TEXTURE_2D, texture_map[i][1]);
+		gl.uniform1i(texture_map[i][0], i);
+	}
+}
+
 /* SHADOW MAPPING PASS
 ====================== */
 function shadowmap_pass(gl:any, pd:any, room:Room):void {
@@ -30,7 +38,7 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.shadowmap_pass);
 
 	// use shader
-	const shader = pd.shaders.shadowmap_pass;
+	let shader = pd.shaders.shadowmap_pass;
 	gl.useProgram(shader.prog);
 
 	// clear constants
@@ -100,153 +108,32 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 		}
 	}
 
-	// reset viewport
-	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
-}
+	// evsm pass
+	// ---------------------------
+	// bind FRAMEBUFFER
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.evsm_pass);
 
-/* SUMMED AREA PASS
-=================== */
-function summedarea_pass(gl:any, pd:any, room:Room):void {
-	// set rendering constants           
-	gl.disable(gl.DEPTH_TEST);         
-	gl.enable(gl.CULL_FACE);
-	gl.cullFace(gl.BACK);
-
-	// easy reference constants
-	const tex_a = pd.tx.shadow_atlas.savsm_a;
-	const tex_b = pd.tx.shadow_atlas.savsm_b;
-
-	// X PASSES
-	// --------
-	// use shader
-	let shader:any = pd.shaders.summedarea_first_x_pass; // should be changed after first iter
+	// set shader
+	shader = pd.shaders.evsm_pass;
 	gl.useProgram(shader.prog);
-	
-	// perform recursive iters
-	if(!pd.x_iters && pd.x_iters !== 0)
-		pd.x_iters = Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[0]));;
-	const x_iters:number = pd.x_iters;;//Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[0]));
-	let writing_tex_a:boolean = true; 
-	for(let i=0; i<x_iters; i++) {
-		// bind fb
-		gl.bindFramebuffer(gl.FRAMEBUFFER, writing_tex_a ? pd.fb.summedarea_a : pd.fb.summedarea_b);
-		// set input texture
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, i === 0 
-			? pd.tx.shadow_atlas.linear_tex
-			: (writing_tex_a ? tex_b : tex_a));
-		gl.uniform1i(shader.uniforms.in_tex, 0);
-		// set iter uniforms
-		gl.uniform1i(shader.uniforms.iter, i);
 
-		// loop over lights
-		for(let light_index=0; light_index<room.spotlights.length; light_index++) {	
-			// set viewport
-			const vp_offset_x = pd.tx.shadow_atlas.map_dims[0] * (light_index%pd.tx.shadow_atlas.atlas_size);
-			const vp_offset_y = pd.tx.shadow_atlas.map_dims[1] * Math.floor(light_index/pd.tx.shadow_atlas.atlas_size);
-			gl.viewport(vp_offset_x, vp_offset_y, pd.tx.shadow_atlas.map_dims[0], pd.tx.shadow_atlas.map_dims[1]);
-
-			// set atlas info 
-			gl.uniform3f(shader.uniforms.atlas_info,  
-				light_index % pd.tx.shadow_atlas.atlas_size,
-				Math.floor(light_index / pd.tx.shadow_atlas.atlas_size),
-				pd.tx.shadow_atlas.atlas_size);
-			gl.uniform2fv(shader.uniforms.tex_dims, pd.tx.shadow_atlas.map_dims);
-
-			// bind vao
-			gl.bindVertexArray(pd.vaos.quad);
-			// draw
-			gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-			// unbind vao
-			gl.bindVertexArray(null);
-		}
-
-		// swap shader program if finishing first iter
-		if(i === 0) {
-			shader = pd.shaders.summedarea_x_pass;
-			gl.useProgram(shader.prog);
-		}
-
-		// flip buffers
-		writing_tex_a = !writing_tex_a;
-	}
-
-	// Y PASSES
-	// --------
-	// use shader
-	shader = pd.shaders.summedarea_y_pass;
-	gl.useProgram(shader.prog);
-	// perform recursive iters
-	if(!pd.y_iters && pd.y_iters !== 0)
-		pd.y_iters = Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[1]));;
-	const y_iters:number = pd.y_iters;;//Math.ceil(Math.log2(pd.tx.shadow_atlas.map_dims[1]));
-	for(let i=0; i<y_iters; i++) {
-		// bind fb
-		gl.bindFramebuffer(gl.FRAMEBUFFER, writing_tex_a ? pd.fb.summedarea_a : pd.fb.summedarea_b);
-		// set input texture
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, writing_tex_a ? tex_b : tex_a);
-		gl.uniform1i(shader.uniforms.in_tex, 0);
-		// set iter uniforms
-		gl.uniform1i(shader.uniforms.iter, i);
-
-		// loop over lights
-		for(let light_index=0; light_index<room.spotlights.length; light_index++) {	
-			// set viewport
-			const vp_offset_x = pd.tx.shadow_atlas.map_dims[0] * (light_index%pd.tx.shadow_atlas.atlas_size);
-			const vp_offset_y = pd.tx.shadow_atlas.map_dims[1] * Math.floor(light_index/pd.tx.shadow_atlas.atlas_size);
-			gl.viewport(vp_offset_x, vp_offset_y, pd.tx.shadow_atlas.map_dims[0], pd.tx.shadow_atlas.map_dims[1]);
-
-			// set atlas info 
-			gl.uniform3f(shader.uniforms.atlas_info,  
-				light_index % pd.tx.shadow_atlas.atlas_size,
-				Math.floor(light_index / pd.tx.shadow_atlas.atlas_size),
-				pd.tx.shadow_atlas.atlas_size);
-			gl.uniform2fv(shader.uniforms.tex_dims, pd.tx.shadow_atlas.map_dims);
-
-			// bind vao
-			gl.bindVertexArray(pd.vaos.quad);
-			// draw
-			gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-			// unbind vao
-			gl.bindVertexArray(null);
-		}
-
-		// flip buffers
-		writing_tex_a = !writing_tex_a;
-	}
-
-	// reset viewport
-	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
-
-	// set active shadowatlas
-	// reverse of writing_tex_a since it flips after last iter
-	pd.tx.shadow_atlas.savsm_active = writing_tex_a ? tex_b : tex_a;
-}
-
-/* UINT TEX DEBUG
-================= */
-function uint_tex_debug(gl:any, pd:any) {
-	// set fbo
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-	// use program
-	const shader = pd.shaders.uint_tex_debug;
-	gl.useProgram(shader.prog);
+	// set viewport
+	const atlas_size = pd.tx.shadow_atlas.atlas_size;
+	gl.viewport(0, 0, atlas_size*pd.tx.shadow_atlas.map_dims[0], atlas_size*pd.tx.shadow_atlas.map_dims[1]);
 
 	// clear constants
-	gl.clearColor(0.0, 0.0, 0.0, 1.0);  
-	gl.clearDepth(1.0);                 
-	gl.disable(gl.DEPTH_TEST);          
+	gl.clearColor(0.0, 0.0, 0.0, 1.0); 
+	gl.clearDepth(1.0);                
+	gl.disable(gl.DEPTH_TEST);         
 	gl.enable(gl.CULL_FACE);
 	gl.cullFace(gl.BACK);
 	// clear
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// texture set
-	gl.activeTexture(gl.TEXTURE0);	// ssao texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
-	gl.uniform1i(shader.uniforms.in_tex, 0);
+	// set textures
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.linear_tex);
+	gl.uniform1i(shader.uniforms.sm_tex, 0);
 
 	// bind vao
 	gl.bindVertexArray(pd.vaos.quad);
@@ -254,6 +141,9 @@ function uint_tex_debug(gl:any, pd:any) {
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 	// unbind vao
 	gl.bindVertexArray(null);
+
+	// reset viewport
+	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
 }
 
 /* GBUFFER PASS FOR DEFERRED SHADING
@@ -462,6 +352,9 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// texture set
+	// const texture_map = [
+	// 	[]
+	// ]
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[1]);
 	gl.uniform1i(shader.uniforms.pos_tex, 0);
@@ -477,15 +370,9 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	gl.activeTexture(gl.TEXTURE4);	// shadow atlas linear depth texture
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.linear_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 4);
-	if(pd.savsm_uint) {
-		gl.activeTexture(gl.TEXTURE5);	// shadow atlas savsm uint texture
-		gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
-		gl.uniform1i(shader.uniforms.shadow_atlas_savsm_uint_tex, 5);
-	} else {
-		gl.activeTexture(gl.TEXTURE5);	// shadow atlas savsm texture
-		gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.savsm_active);
-		gl.uniform1i(shader.uniforms.shadow_atlas_savsm_tex, 5);
-	}
+	gl.activeTexture(gl.TEXTURE5);	// shadow atlas linear depth texture
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.evsm_tex);
+	gl.uniform1i(shader.uniforms.shadow_atlas_evsm_tex, 5);
 	gl.activeTexture(gl.TEXTURE6);	// shadow atlas texture (shadow sampler)
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 6);
@@ -657,9 +544,6 @@ function render(gl:any, pd:any, t:number):void {
 	// shadowmap pass
 	shadowmap_pass(gl, pd, pd.room_list[0]);
 
-	// summedarea pass
-	summedarea_pass(gl, pd, pd.room_list[0]);
-
 	// get projection matrix
 	const proj_m:mat4 = get_projection(gl, 90);
 	
@@ -683,9 +567,6 @@ function render(gl:any, pd:any, t:number):void {
 	// fxaa post-process
 	if(pd.settings.fxaa.enabled)
 		fxaa_pass(gl, pd);
-
-	// tex debug
-	// uint_tex_debug(gl, pd);
 }
 
 // EXPORTS

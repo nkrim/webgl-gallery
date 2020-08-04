@@ -5,7 +5,7 @@ export const evsm_pass_l = {
 	},
 	uniforms: {
 		sm_tex: 'u_sm_tex',
-		atlas_info: 'u_atlas_info',
+		exponents: 'u_exponents',
 	}
 }
 
@@ -27,9 +27,7 @@ export const evsm_pass_f = `#version 300 es
 precision mediump float;
 
 uniform sampler2D u_sm_tex;
-
-const float esm_pos_constant = 30.0;
-const float esm_neg_constant = 30.0;
+uniform vec2 u_exponents;
 
 in vec2 v_texcoord;
 
@@ -37,9 +35,9 @@ out vec4 o_fragcolor;
 
 void main() {
 	float lin_z = texture(u_sm_tex, v_texcoord).x;
-	lin_z = lin_z*2.0 - 1.0;
-	float p_exp_z = exp(esm_pos_constant * lin_z);
-	float n_exp_z = -exp(-esm_neg_constant * lin_z);
+	// lin_z = lin_z*2.0 - 1.0;
+	float p_exp_z = exp(u_exponents.x * lin_z);
+	float n_exp_z = -exp(-u_exponents.y * lin_z);
 	o_fragcolor = vec4(p_exp_z, p_exp_z*p_exp_z, n_exp_z, n_exp_z*n_exp_z);
 	// o_fragcolor = vec4(lin_z, 0.0, 0.0, 1.0); 
 	// o_fragcolor = vec4(lin_z,0.0,0.0,1.0); 

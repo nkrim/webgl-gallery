@@ -3,7 +3,7 @@ import { SAVSM_UINT } from '../js/app.js';
 
 // CONSTANTS
 export const PCF_POISSON_SAMPLE_COUNT = 32;
-export const PCSS_POISSON_SAMPLE_COUNT = 64;
+export const PCSS_POISSON_SAMPLE_COUNT = 32;
 
 // LOCATIONS
 export const spotlight_pass_l = {
@@ -41,6 +41,7 @@ export const spotlight_pass_l = {
         light_max_bias: 'u_light_max_bias',
         light_znear: 'u_light_znear',
         light_zfar: 'u_light_zfar',
+        light_exponents: 'u_light_exponents',
     }
 }
 
@@ -77,14 +78,33 @@ export function gen_spotlight_pass_f(screen_width, screen_height, pcf_samples, p
     shadow += texture(u_shadow_atlas_tex, vec3(s_projcoord.xy + rot*(pcf_samples[${i}]*sample_width*sm_texel), s_projcoord.z+shadow_bias));`;
     }
 
+    let evsm_pcf_loop = '';
+    for(let i=0; i<PCF_POISSON_SAMPLE_COUNT; i++) {
+        evsm_pcf_loop += `
+    summed_moments += texture(u_shadow_atlas_evsm_tex, s_projcoord.xy + rot*(pcf_samples[${i}]*sample_width*sm_texel));`;
+    }
+
     // generate pcss loop
+    let pcss_mat = [
+        [ 0.0,0.0,0.5,1.0,0.5,0.0,0.0 ],
+        [ 0.0,1.0,1.0,1.0,1.0,1.0,0.0 ],
+        [ 0.5,1.0,1.0,1.0,1.0,1.0,0.5 ],
+        [ 1.0,1.0,1.0,1.0,1.0,1.0,1.0 ],
+        [ 0.5,1.0,1.0,1.0,1.0,1.0,0.5 ],
+        [ 0.0,1.0,1.0,1.0,1.0,1.0,0.0 ],
+        [ 0.0,0.0,0.5,1.0,0.5,0.0,0.0 ]];
     let pcss_loop = '';
-    for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT; i++) {
-        pcss_loop += `
-        offset = rot*(pcss_samples[${i}] * region_scale * sm_texel);
-        blocker_sample = texture(u_shadow_atlas_linear_tex, s_texcoord + offset).x;
-        if(blocker_sample < linear_z) blockers++;
-        if(blocker_sample < linear_z) avg_blocker_depth += blocker_sample;`
+    for(let r=0; r<pcss_mat.length; r++) {
+        for(let c=0; c<pcss_mat[r].length; c++) {
+            const scale = pcss_mat[r][c];
+            if(scale > 0) {
+                pcss_loop += `
+                offset = rot*(${pretty_float(scale,2)} * region_scale * sm_texel * vec2(${pretty_float(c/6-0.5,2)},${pretty_float(r/6-0.5,2)}));
+                blocker_sample = texture(u_shadow_atlas_linear_tex, s_texcoord + offset).x;
+                if(blocker_sample < linear_z) blockers++;
+                if(blocker_sample < linear_z) avg_blocker_depth += blocker_sample;`
+            }
+        }
     }
 
     return `#version 300 es
@@ -137,6 +157,7 @@ uniform float u_light_min_bias;
 uniform float u_light_max_bias;
 uniform float u_light_znear;
 uniform float u_light_zfar;
+uniform vec2 u_light_exponents;
 //uniform float u_light_fov;
 
 // out
@@ -215,11 +236,16 @@ void main() {
 
     // calculate shadows
     float shadow_bias = -max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
-    // float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
+    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
 
-    vec2 sm_texel = 1.0/(u_shadowmap_dims.xy*u_shadow_atlas_info.z);
-    float linear_z = linearize_depth(P_from_light.z, u_light_znear, u_light_zfar);
-    float shadow = shadowmap_evsm(P_from_light.xyz, sm_texel, linear_z);
+    // vec2 sm_texel = 1.0/(u_shadowmap_dims.xy*u_shadow_atlas_info.z);
+    // float linear_z = linearize_depth(P_from_light.z, u_light_znear, u_light_zfar);
+    // float shadow = shadowmap_evsm(P_from_light.xyz, sm_texel, linear_z);
+
+    if(shadow > 1.0) {
+        o_fragcolor = vec4(1.0,0.0,0.0,1.0);
+        return;
+    }
 
     if(shadow < 0.0001)
        discard;
@@ -281,7 +307,7 @@ vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_texel, float
     if(blockers > 0) avg_blocker_depth /= f_blockers;
     return vec2(avg_blocker_depth, f_blockers);
 }
-float chebyshev_inequality(vec2 moments, float z) {
+float chebyshev_inequality(vec2 moments, float z, float min_variance) {
     float variance = moments.y - moments.x*moments.x;
     variance = max(variance, vsm_min_variance);
     float znorm = z - moments.x;
@@ -298,11 +324,33 @@ float shadowmap_evsm(vec3 s_projcoord, vec2 sm_texel, float linear_z) {
     // float dy = dFdy(moment.x);
     // moment.y += 0.25*(dx*dx + dy*dy);
     
-    // positive chebyshev
-    linear_z = linear_z*2.0 - 1.0;
-    float pos_pmax = chebyshev_inequality(moments.xy,  exp( 30.0 * linear_z));
-    float neg_pmax = chebyshev_inequality(moments.zw, -exp(-30.0 * linear_z));
-    return clamp(min(pos_pmax, neg_pmax), 0.0, 1.0);
+    // linear_z = linear_z*2.0 - 1.0;
+    vec2 exp_z = vec2(exp(u_light_exponents.x*linear_z),-exp(-u_light_exponents.y*linear_z));
+    vec2 min_variances = 0.01*0.01 * u_light_exponents * exp_z;
+
+    float pos_pmax = chebyshev_inequality(moments.xy, exp_z.x, min_variances.x);
+    float neg_pmax = chebyshev_inequality(moments.zw, exp_z.y, min_variances.y);
+    // return clamp(min(pos_pmax, neg_pmax), 0.0, 1.0);
+    return clamp(min(pos_pmax, neg_pmax), 0.0, 10.0);
+}
+float variable_shadowmap_evsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, mat2 rot, float sample_width) {
+    vec4 summed_moments = vec4(0.0);
+    ${evsm_pcf_loop}
+    vec4 moments = summed_moments/float(pcf_sample_count);
+
+    // return moment.x;
+    // float dx = dFdx(moment.x);
+    // float dy = dFdy(moment.x);
+    // moment.y += 0.25*(dx*dx + dy*dy);
+    
+    // linear_z = linear_z*2.0 - 1.0;
+    vec2 exp_z = vec2(exp(u_light_exponents.x*linear_z),-exp(-u_light_exponents.y*linear_z));
+    vec2 min_variances = 0.01*0.01 * u_light_exponents * exp_z;
+
+    float pos_pmax = chebyshev_inequality(moments.xy, exp_z.x, min_variances.x);
+    float neg_pmax = chebyshev_inequality(moments.zw, exp_z.y, min_variances.y);
+    // return clamp(min(pos_pmax, neg_pmax), 0.0, 1.0);
+    return clamp(min(pos_pmax, neg_pmax), 0.0, 10.0);
 }
 float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias, float rand) {
     // random rot
@@ -317,7 +365,7 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     float max_search = 30.0;
     float search_width = max(min_search,min(max_search, light_size * (light_z - u_light_znear) / min(eye_z, 1.0)));
     search_width *= u_shadowmap_dims.x/penumbra_basis_resolution; // normalize to basis resolution
-    search_width = 5.0;
+    // search_width = 5.0;
     vec2 blocker_res = pcss_blocker_distance(s_projcoord.xy, linear_z, sm_texel, search_width, rot, shadow_bias);
     if(blocker_res.y < 0.9)                   return 1.0;
     if(blocker_res.x >= linear_z+shadow_bias) return 1.0;
@@ -326,9 +374,11 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     // penumbra_size *= u_light_znear/linear_z;
     penumbra_size *= u_shadowmap_dims.x/penumbra_basis_resolution; // normalize to basis resolution
 
+    penumbra_size *= 3.0;
+
     // return blocker_res.y*10.0;
 
-    float shadow = shadowmap_pcf(s_projcoord, sm_texel, penumbra_size, rot, shadow_bias);
+    float shadow = variable_shadowmap_evsm(s_projcoord, sm_texel, linear_z, rot, penumbra_size);
 
     return shadow;
 }

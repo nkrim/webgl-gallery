@@ -5,12 +5,15 @@ export const DEFAULT_SETTINGS:any = {
 		model: false,
 	},
 	ssao: {
-		enabled: true,
+		enabled: false,
 	},
 	fxaa: {
 		enabled: true,
 		quality_index: 0,
 	},
+	shadow: {
+		exponents: [30,30],
+	}
 }
 
 export function init_settings_handlers(pd:any):void {

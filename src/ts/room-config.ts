@@ -15,7 +15,7 @@ export function load_room(r:any):Room {
 export const room_config:Array<any> = [
 	{
 		/* TEST ROOM 01 (octagon with 4 pillars) */
-		room_scale: 3,
+		room_scale: 5,
 		wall_height: 6,
 		wall_bias: 1,
 		wall_albedo: [0.8,0.8,0.8], wall_rough_metal: [1.0, 0.0],
@@ -41,8 +41,8 @@ export const room_config:Array<any> = [
 		],
 		ambient_color: [1.0,1.0,1.0], ambient_intensity: 0.3,
 		spotlights: [
-			// new Spotlight(new Camera([0, 6.0, 0], -Math.PI/2, 0.0), [1.0,0.95,0.9], 10.0, [30,65], 1, 12.0, [0.0005,0.005], [1.0,10.0]),
-			// new Spotlight(new Camera([3.1, 4, 1.75], -0.23441, Math.PI/4), [1.0,0.95,0.9], 10.0, [25,45], 1, [1.0,100.0]),
+			new Spotlight(new Camera([0, 6.0, 0], -Math.PI/2, 0.0), [1.0,0.95,0.9], 10.0, [30,65], 1, 12.0, [0.0005,0.005], [1.0,10.0]),
+			// new Spotlight(new Camera([3.1, 4, 1.75], -0.23441, Math.PI/4), [1.0,0.95,0.9], 10.0, [25,45], 1, 12.0, [0.0005,0.005], [1.0,100.0]),
 			new Spotlight(new Camera([3.1, 0.35, 1.75], Math.PI/8, Math.PI/4), [1.0,0.95,0.9], 10.0, [20,65], 1, 12.0, [0.0005,0.005], [1.0,25.0]),
 			// new Spotlight(new Camera([3, 0.25, -0.05], Math.PI/8, Math.PI/2), [1.0,0.95,0.9], 5.0, [35,65], 1, [1.0,100.0]),
 		]

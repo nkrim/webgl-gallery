@@ -260,7 +260,7 @@ function init_textures(gl) {
 	// gbuffer attachments
 	tx_obj.bufs = []
 	for(let i=0; i<6; i++) {
-		tx_obj.bufs.push(gen_screen_color_texture(gl, gl.LINEAR));
+		tx_obj.bufs.push(gen_screen_color_texture(gl, gl.LINEAR, undefined, gl.RGBA32F));
 	}
 	// ssao texture
 	M.vec2.set(dims, gl.canvas.clientWidth, gl.canvas.clientHeight);
@@ -269,7 +269,7 @@ function init_textures(gl) {
 	// shadow atlas
 	const shadow_atlas = {
 		map_dims: [1024, 1024],
-		atlas_size: 1,
+		atlas_size: 2,
 	};
 	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
 	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.NEAREST, atlas_dims, true);

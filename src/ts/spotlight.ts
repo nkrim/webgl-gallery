@@ -18,7 +18,8 @@ export class Spotlight {
 
 	// Constructed properties
 	// ----------------------
-	proj_m:		mat4;
+	_o_angle_nocos: number;
+	_proj_m:		mat4;
 
 	// Constructor
 	// -----------
@@ -44,7 +45,13 @@ export class Spotlight {
 		this.zplanes = M.vec2.create(); M.vec2.copy(this.zplanes, zplanes);
 
 		// construct properties
-		this.proj_m = M.mat4.create();
-		M.mat4.perspective(this.proj_m, o_angle_nocos+0.1, 1.0, this.zplanes[0], this.zplanes[1]); // !!!!!!MEGA TEMPORARY
+		this._o_angle_nocos = o_angle_nocos;
+		this._proj_m = M.mat4.create();
+	}
+
+	// should cache result in the future
+	get_projection_matrix():mat4 {
+		M.mat4.perspective(this._proj_m, this._o_angle_nocos+0.1, 1.0, this.zplanes[0], this.zplanes[1]);
+		return this._proj_m;
 	}
 }

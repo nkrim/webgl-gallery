@@ -69,7 +69,7 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 		gl.viewport(vp_offset_x, vp_offset_y, pd.tx.shadow_atlas.map_dims[0], pd.tx.shadow_atlas.map_dims[1]);
 	 	
 		// Set projection uniform
-		gl.uniformMatrix4fv(shader.uniforms.proj_m, false, light.proj_m);
+		gl.uniformMatrix4fv(shader.uniforms.proj_m, false, light.get_projection_matrix());
 
 		// Set modelview uniform
 		const view_m:mat4 = light.cam.get_view_matrix();
@@ -134,6 +134,9 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.linear_tex);
 	gl.uniform1i(shader.uniforms.sm_tex, 0);
+
+	// set uniforms
+	gl.uniform2fv(shader.uniforms.exponents, pd.settings.shadow.exponents);
 
 	// bind vao
 	gl.bindVertexArray(pd.vaos.quad);
@@ -386,6 +389,7 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	// global uniform set
 	// ------------------
 	gl.uniform3fv(shader.uniforms.time, t3);
+	gl.uniform2fv(shader.uniforms.light_exponents, pd.settings.shadow.exponents);
 
 	// camera constants
 	const view_m:mat4 = pd.cam.get_view_matrix();
@@ -409,7 +413,7 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 		const c_view_to_l_view:mat4 = M.mat4.create();
 		M.mat4.mul(c_view_to_l_view, light.cam.get_view_matrix(), inv_view_m);
 		gl.uniformMatrix4fv(shader.uniforms.camera_view_to_light_view, false, c_view_to_l_view);
-		gl.uniformMatrix4fv(shader.uniforms.light_proj, false, light.proj_m);
+		gl.uniformMatrix4fv(shader.uniforms.light_proj, false, light.get_projection_matrix());
 
 		// light uniform set
 		const v4:vec4 = M.vec4.create();

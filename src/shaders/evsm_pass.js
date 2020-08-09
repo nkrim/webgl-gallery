@@ -29,13 +29,15 @@ precision mediump float;
 uniform sampler2D u_sm_tex;
 uniform vec2 u_exponents;
 
+const float bias = 0.001;
+
 in vec2 v_texcoord;
 
 out vec4 o_fragcolor;
 
 void main() {
-	float lin_z = texture(u_sm_tex, v_texcoord).x;
-	// lin_z = lin_z*2.0 - 1.0;
+	float lin_z = texture(u_sm_tex, v_texcoord).x + bias;
+	lin_z = lin_z*2.0 - 1.0;
 	float p_exp_z = exp(u_exponents.x * lin_z);
 	float n_exp_z = -exp(-u_exponents.y * lin_z);
 	o_fragcolor = vec4(p_exp_z, p_exp_z*p_exp_z, n_exp_z, n_exp_z*n_exp_z);

@@ -4,6 +4,7 @@ import { Room } from './room';
 import { Spotlight } from './spotlight';
 import { Model } from './model';
 import { mesh_buffer_info } from './mesh';
+import { SHADOWMAP_SIZE } from './texture_manager';
 
 /* RENDERING
 ============ */
@@ -33,9 +34,12 @@ function set_textures(gl:any, texture_map:Array<[number,WebGLTexture]>):void {
 
 /* SHADOW MAPPING PASS
 ====================== */
-function shadowmap_pass(gl:any, pd:any, room:Room):void {
+function shadowmap_pass(gl:any, pd:any, room:Room, light:Spotlight):void {
 	// bind fb
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.shadowmap_pass);
+
+	// set viewport
+	gl.viewport(0, 0, SHADOWMAP_SIZE, SHADOWMAP_SIZE);
 
 	// use shader
 	let shader = pd.shaders.shadowmap_pass;
@@ -59,53 +63,43 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 	M.mat4.fromRotationTranslationScale(player_model_m, player_quat, player_trans, player_scale);
 
 	// SHOULD BE A LOOP IN THE FUTURE, FOR NOW 1 LIGHT
-	for(let i=0; i<room.spotlights.length; i++) {	
-		// fetch light
-		const light = room.spotlights[i];
+	// Set projection uniform
+	gl.uniformMatrix4fv(shader.uniforms.proj_m, false, light.get_projection_matrix());
 
-		// set viewport
-		const vp_offset_x = pd.tx.shadow_atlas.map_dims[0] * (i%pd.tx.shadow_atlas.atlas_size);
-		const vp_offset_y = pd.tx.shadow_atlas.map_dims[1] * Math.floor(i/pd.tx.shadow_atlas.atlas_size);
-		gl.viewport(vp_offset_x, vp_offset_y, pd.tx.shadow_atlas.map_dims[0], pd.tx.shadow_atlas.map_dims[1]);
-	 	
-		// Set projection uniform
-		gl.uniformMatrix4fv(shader.uniforms.proj_m, false, light.get_projection_matrix());
+	// Set modelview uniform
+	const view_m:mat4 = light.cam.get_view_matrix();
+	const mv_m:mat4 = M.mat4.create(); M.mat4.copy(mv_m, view_m);
+	gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
 
-		// Set modelview uniform
-		const view_m:mat4 = light.cam.get_view_matrix();
-		const mv_m:mat4 = M.mat4.create(); M.mat4.copy(mv_m, view_m);
+	// set light uniforms
+	gl.uniform1f(shader.uniforms.znear, light.zplanes[0]);
+	gl.uniform1f(shader.uniforms.zfar, light.zplanes[1]);
+
+	// DRAW ROOM		
+	gl.bindVertexArray(pd.vaos.room);		// BIND VAO
+	gl.drawElements(gl.TRIANGLES, room.mesh_count_i, gl.UNSIGNED_SHORT, room.buffer_offset_i);
+	gl.bindVertexArray(null);				// UNBIND VAO
+
+	// DRAW MODELS
+	gl.bindVertexArray(pd.vaos.mesh);		// BIND VAO
+	for(let j=0; j<room.models.length; j++) {
+		const model = room.models[j];
+		M.mat4.mul(mv_m, light.cam.get_view_matrix(), model.get_model_matrix());
 		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
+		const buffer_info = mesh_buffer_info.get(model.mesh_id);
+		gl.drawElements(gl.TRIANGLES, buffer_info[0], gl.UNSIGNED_SHORT, buffer_info[1]);
+	}
+	gl.bindVertexArray(null);				// UNBIND VAO
 
-		// set light uniforms
-		gl.uniform1f(shader.uniforms.znear, light.zplanes[0]);
-		gl.uniform1f(shader.uniforms.zfar, light.zplanes[1]);
-
-		// DRAW ROOM		
-		gl.bindVertexArray(pd.vaos.room);		// BIND VAO
-		gl.drawElements(gl.TRIANGLES, room.mesh_count_i, gl.UNSIGNED_SHORT, room.buffer_offset_i);
+	if(pd.settings.player.model) {
+		const player_mv_m = M.mat4.create();
+		// setup player mvm
+		M.mat4.mul(player_mv_m, light.cam.get_view_matrix(), player_model_m);
+		gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_mv_m);
+		// DRAW PLAYER
+		gl.bindVertexArray(pd.vaos.player);		// BIND VAO
+		gl.drawElements(gl.TRIANGLES, 24, gl.UNSIGNED_SHORT, 0);
 		gl.bindVertexArray(null);				// UNBIND VAO
-
-		// DRAW MODELS
-		gl.bindVertexArray(pd.vaos.mesh);		// BIND VAO
-		for(let j=0; j<room.models.length; j++) {
-			const model = room.models[j];
-			M.mat4.mul(mv_m, light.cam.get_view_matrix(), model.get_model_matrix());
-			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, mv_m);
-			const buffer_info = mesh_buffer_info.get(model.mesh_id);
-			gl.drawElements(gl.TRIANGLES, buffer_info[0], gl.UNSIGNED_SHORT, buffer_info[1]);
-		}
-		gl.bindVertexArray(null);				// UNBIND VAO
-
-		if(pd.settings.player.model) {
-			const player_mv_m = M.mat4.create();
-			// setup player mvm
-			M.mat4.mul(player_mv_m, light.cam.get_view_matrix(), player_model_m);
-			gl.uniformMatrix4fv(shader.uniforms.mv_m, false, player_mv_m);
-			// DRAW PLAYER
-			gl.bindVertexArray(pd.vaos.player);		// BIND VAO
-			gl.drawElements(gl.TRIANGLES, 24, gl.UNSIGNED_SHORT, 0);
-			gl.bindVertexArray(null);				// UNBIND VAO
-		}
 	}
 
 	// evsm pass
@@ -116,10 +110,6 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 	// set shader
 	shader = pd.shaders.evsm_pass;
 	gl.useProgram(shader.prog);
-
-	// set viewport
-	const atlas_size = pd.tx.shadow_atlas.atlas_size;
-	gl.viewport(0, 0, atlas_size*pd.tx.shadow_atlas.map_dims[0], atlas_size*pd.tx.shadow_atlas.map_dims[1]);
 
 	// clear constants
 	gl.clearColor(0.0, 0.0, 0.0, 1.0); 
@@ -132,7 +122,7 @@ function shadowmap_pass(gl:any, pd:any, room:Room):void {
 
 	// set textures
 	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.linear_tex);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.sm_linear_generic);
 	gl.uniform1i(shader.uniforms.sm_tex, 0);
 
 	// set uniforms
@@ -258,13 +248,13 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[1]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[1]);
 	gl.uniform1i(shader.uniforms.pos_tex, 0);
 	gl.activeTexture(gl.TEXTURE1);	// normal buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[2]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[2]);
 	gl.uniform1i(shader.uniforms.norm_tex, 1);
 	gl.activeTexture(gl.TEXTURE2);	// noise texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.rot_noise);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_noise);
 	gl.uniform1i(shader.uniforms.noise_tex, 2);
 
 	// uniform set
@@ -311,10 +301,10 @@ function ssao_blur(gl:any, pd:any, t3:vec3):void {
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_pass);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_preblur);
 	gl.uniform1i(shader.uniforms.ssao_tex, 0);
 	gl.activeTexture(gl.TEXTURE1);	// blue noise texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.get_image_from_name('blue_noise'));
 	gl.uniform1i(shader.uniforms.blue_noise_tex, 1);
 
 	// uniform set
@@ -359,31 +349,31 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	// 	[]
 	// ]
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[1]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[1]);
 	gl.uniform1i(shader.uniforms.pos_tex, 0);
 	gl.activeTexture(gl.TEXTURE1);	// normal buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[2]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[2]);
 	gl.uniform1i(shader.uniforms.norm_tex, 1);
 	gl.activeTexture(gl.TEXTURE2);	// albedo buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[3]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[3]);
 	gl.uniform1i(shader.uniforms.albedo_tex, 2);
 	gl.activeTexture(gl.TEXTURE3);	// rough/metal buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[4]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[4]);
 	gl.uniform1i(shader.uniforms.rough_metal_tex, 3);
 	gl.activeTexture(gl.TEXTURE4);	// shadow atlas linear depth texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.linear_tex);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.sm_linear_generic);
 	gl.uniform1i(shader.uniforms.shadow_atlas_linear_tex, 4);
 	gl.activeTexture(gl.TEXTURE5);	// shadow atlas linear depth texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.evsm_tex);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.sm_evsm_generic);
 	gl.uniform1i(shader.uniforms.shadow_atlas_evsm_tex, 5);
 	gl.activeTexture(gl.TEXTURE6);	// shadow atlas texture (shadow sampler)
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.shadow_atlas.depth_tex);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.sm_depth_generic);
 	gl.uniform1i(shader.uniforms.shadow_atlas_tex, 6);
 	gl.activeTexture(gl.TEXTURE7);	// blue noise texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.get_image_from_name('blue_noise'));
 	gl.uniform1i(shader.uniforms.blue_noise_tex, 7);
 	gl.activeTexture(gl.TEXTURE8);	// blue noise 1D texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise_1d);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.get_image_from_name('blue_noise_1d'));
 	gl.uniform1i(shader.uniforms.blue_noise_tex_1d, 8);
 
 	// global uniform set
@@ -402,12 +392,7 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 	for(let light_index=0; light_index<room.spotlights.length; light_index++) {
 		const light = room.spotlights[light_index];
 		// shadowmap uniform set
-		gl.uniform3f(shader.uniforms.shadow_atlas_info,  
-			light_index % pd.tx.shadow_atlas.atlas_size,
-			Math.floor(light_index / pd.tx.shadow_atlas.atlas_size),
-			pd.tx.shadow_atlas.atlas_size);
-		gl.uniform3f(shader.uniforms.shadowmap_dims, pd.tx.shadow_atlas.map_dims[0], pd.tx.shadow_atlas.map_dims[1], 
-			pd.tx.shadow_atlas.map_dims[0]*pd.tx.shadow_atlas.map_dims[1]);
+		gl.uniform3f(shader.uniforms.shadowmap_dims, SHADOWMAP_SIZE, SHADOWMAP_SIZE, SHADOWMAP_SIZE*SHADOWMAP_SIZE);
 
 		// matrix uniform set
 		const c_view_to_l_view:mat4 = M.mat4.create();
@@ -452,7 +437,7 @@ function spotlight_pass(gl:any, pd:any, room:Room, t3:vec3):void {
 ================================== */
 function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean, t3:vec3):void {
 	// set fbo
-	gl.bindFramebuffer(gl.FRAMEBUFFER, write_to_frame ? null : pd.fb.deferred_combine);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, write_to_frame ? null : pd.fb.screen_out_a);
 
 	// set program
 	const shader = pd.shaders.deferred_combine;
@@ -476,25 +461,25 @@ function quad_deferred_combine(gl:any, pd:any, write_to_frame:boolean, t3:vec3):
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// position buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[1]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[1]);
 	gl.uniform1i(shader.uniforms.pos_tex, 0);
 	gl.activeTexture(gl.TEXTURE1);	// normal buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[2]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[2]);
 	gl.uniform1i(shader.uniforms.norm_tex, 1);
 	gl.activeTexture(gl.TEXTURE2);	// color buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[3]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[3]);
 	gl.uniform1i(shader.uniforms.color_tex, 2);
 	gl.activeTexture(gl.TEXTURE3);	// ambient buffer
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.bufs[5]);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[5]);
 	gl.uniform1i(shader.uniforms.ambient_tex, 3);
 	gl.activeTexture(gl.TEXTURE4);	// ssao texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.settings.ssao.enabled ? pd.tx.ssao_blur : pd.tx.white); // NEED BACKUP FOR SSAO DISABLED
+	gl.bindTexture(gl.TEXTURE_2D, pd.settings.ssao.enabled ? pd.tx.ssao : pd.tx.white); // NEED BACKUP FOR SSAO DISABLED
 	gl.uniform1i(shader.uniforms.ssao_tex, 4);
 	gl.activeTexture(gl.TEXTURE5);	// light texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.light_val);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.light_accum);
 	gl.uniform1i(shader.uniforms.light_tex, 5);
 	gl.activeTexture(gl.TEXTURE6);	// blue noise texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.img.blue_noise);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.get_image_from_name('blue_noise'));
 	gl.uniform1i(shader.uniforms.blue_noise_tex, 6);
 
 	// bind vao
@@ -526,7 +511,7 @@ function fxaa_pass(gl:any, pd:any):void {
 
 	// texture set
 	gl.activeTexture(gl.TEXTURE0);	// ssao texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.screen_tex);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.screen_out_a);
 	gl.uniform1i(shader.uniforms.screen_tex, 0);
 
 	// bind vao
@@ -546,7 +531,7 @@ function render(gl:any, pd:any, t:number):void {
 	const t3:vec3 = [t,Math.cos(t),Math.sin(t)];
 
 	// shadowmap pass
-	shadowmap_pass(gl, pd, pd.room_list[0]);
+	shadowmap_pass(gl, pd, pd.room_list[0], pd.room_list[0].spotlights[0]);
 
 	// get projection matrix
 	const proj_m:mat4 = get_projection(gl, 90);

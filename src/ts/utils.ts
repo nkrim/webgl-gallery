@@ -73,3 +73,30 @@ export function vec3_gamma_to_linear(target:vec3, source?:vec3):void {
 export function pretty_float(x:number, n:number) {
 	return x.toFixed(n).match(/^(-?\d+\.(?:0|\d*[^0]))(0*)$/)[1];
 }
+
+// adapted from https://gist.github.com/kchapelier/b1fd7e71f5378b871e3d6daa5ae193dc
+// changed to remove redundant repetitions, kernel[0] is center
+const sqr2pi:number = Math.sqrt(2 * Math.PI);
+export function gaussian_kernel_1d(size:number, sigma:number=undefined):Array<number> {
+    // ensure size is even and prepare variables
+    const width			:number 		= (size / 2) | 0; // integer division
+    // following nvidia convention of kernel_radius = sigma*3
+    if(!sigma) sigma = width/2;
+    const kernel 		:Array<number> 	= new Array(width+1)
+    const norm 			:number 		= 1.0 / (sqr2pi * sigma);
+    const coefficient	:number 		= 2 * sigma * sigma;
+    let total 			:number 		= 0;
+    let x				:number;
+
+    // set values and increment total
+    for (x = 0; x <= width; x++) {
+        total += (x==0 ? 1 : 2)*(kernel[x] = norm * Math.exp(-x * x / coefficient));
+    }
+
+    // divide by total to make sure the sum of all the values is equal to 1
+    for (x = 0; x < kernel.length; x++) {
+        kernel[x] /= total;
+    }
+
+    return kernel;
+};

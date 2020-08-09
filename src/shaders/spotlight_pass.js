@@ -21,7 +21,6 @@ export const spotlight_pass_l = {
         blue_noise_tex: 'u_blue_noise_tex',
         blue_noise_tex_1d: 'u_blue_noise_tex_1d',
 
-        shadow_atlas_info: 'u_shadow_atlas_info',
         shadowmap_dims: 'u_shadowmap_dims',
         time: 'u_time',
 
@@ -85,27 +84,36 @@ export function gen_spotlight_pass_f(screen_width, screen_height, pcf_samples, p
     }
 
     // generate pcss loop
-    let pcss_mat = [
-        [ 0.0,0.0,0.5,1.0,0.5,0.0,0.0 ],
-        [ 0.0,1.0,1.0,1.0,1.0,1.0,0.0 ],
-        [ 0.5,1.0,1.0,1.0,1.0,1.0,0.5 ],
-        [ 1.0,1.0,1.0,1.0,1.0,1.0,1.0 ],
-        [ 0.5,1.0,1.0,1.0,1.0,1.0,0.5 ],
-        [ 0.0,1.0,1.0,1.0,1.0,1.0,0.0 ],
-        [ 0.0,0.0,0.5,1.0,0.5,0.0,0.0 ]];
     let pcss_loop = '';
+    for(let i=0; i<PCSS_POISSON_SAMPLE_COUNT; i++) {
+        pcss_loop += `
+        offset = rot*(pcss_samples[${i}] * region_scale * sm_texel);
+        blocker_sample = texture(u_shadow_atlas_linear_tex, s_texcoord + offset).x;
+        if(blocker_sample < linear_z) blockers++;
+        if(blocker_sample < linear_z) avg_blocker_depth += blocker_sample;`;
+    }
+    /*
+    let pcss_mat = [
+        [ 0.00,0.00,0.25,0.25,0.25,0.00,0.00 ],
+        [ 0.00,0.50,0.50,0.50,0.50,0.50,0.00 ],
+        [ 0.25,0.50,0.75,0.75,0.75,0.50,0.25 ],
+        [ 0.25,0.50,0.75,1.00,0.75,0.50,0.25 ],
+        [ 0.25,0.50,0.75,0.75,0.75,0.50,0.25 ],
+        [ 0.00,0.50,0.50,0.50,0.50,0.50,0.00 ],
+        [ 0.00,0.00,0.25,0.25,0.25,0.00,0.00 ]];
     for(let r=0; r<pcss_mat.length; r++) {
         for(let c=0; c<pcss_mat[r].length; c++) {
             const scale = pcss_mat[r][c];
             if(scale > 0) {
                 pcss_loop += `
-                offset = rot*(${pretty_float(scale,2)} * region_scale * sm_texel * vec2(${pretty_float(c/6-0.5,2)},${pretty_float(r/6-0.5,2)}));
+                // offset = rot*(sm_texel * vec2(${pretty_float(c-3.5,2)},${pretty_float(r-3.5,2)}));
+                offset = rot*(region_scale * sm_texel * vec2(${pretty_float(c/6-0.5,2)},${pretty_float(r/6-0.5,2)}));
                 blocker_sample = texture(u_shadow_atlas_linear_tex, s_texcoord + offset).x;
-                if(blocker_sample < linear_z) blockers++;
-                if(blocker_sample < linear_z) avg_blocker_depth += blocker_sample;`
+                if(blocker_sample < linear_z) f_blockers += ${pretty_float(scale,3)};
+                if(blocker_sample < linear_z) avg_blocker_depth += ${pretty_float(scale,3)}*blocker_sample;`
             }
         }
-    }
+    }*/
 
     return `#version 300 es
 precision highp float;
@@ -136,7 +144,6 @@ const vec2 pcss_samples[pcss_sample_count] = vec2[](${pcss_samples_string});
 
 // shadowmap uniforms
 uniform vec3 u_shadowmap_dims;
-uniform vec3 u_shadow_atlas_info;
 uniform vec3 u_time;
 
 // matrix uniforms
@@ -226,26 +233,22 @@ void main() {
     P_from_light.xyz *= 0.5;
     P_from_light.xyz += 0.5;
 
-    // adjust for atlas position
-    P_from_light.xy += u_shadow_atlas_info.xy;
-    P_from_light.xy /= u_shadow_atlas_info.z;
-
     // calculate random cos_angle
     float rand = texture(u_blue_noise_tex_1d, (v_texcoord*vec2(${screen_width}.0,${screen_height}.0)/256.0) + u_time.yz).r;
     rand *= 2.0*PI;
 
     // calculate shadows
     float shadow_bias = -max(u_light_max_bias * (1.0 - n_dot_l), u_light_min_bias);
-    float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
+    // float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
 
-    // vec2 sm_texel = 1.0/(u_shadowmap_dims.xy*u_shadow_atlas_info.z);
-    // float linear_z = linearize_depth(P_from_light.z, u_light_znear, u_light_zfar);
-    // float shadow = shadowmap_evsm(P_from_light.xyz, sm_texel, linear_z);
+    vec2 sm_texel = 1.0/(u_shadowmap_dims.xy);
+    float linear_z = linearize_depth(P_from_light.z, u_light_znear, u_light_zfar);
+    float shadow = shadowmap_evsm(P_from_light.xyz, sm_texel, linear_z);
 
-    if(shadow > 1.0) {
+    /*if(shadow > 1.0) {
         o_fragcolor = vec4(1.0,0.0,0.0,1.0);
         return;
-    }
+    }*/
 
     if(shadow < 0.0001)
        discard;
@@ -299,12 +302,14 @@ vec2 pcss_blocker_distance(vec2 s_texcoord, float linear_z, vec2 sm_texel, float
     linear_z += bias;
     // average blocker distance 
     int blockers = 0;
+    // float f_blockers = 0.0;
     float avg_blocker_depth = 0.0;
     vec2 offset;
     float blocker_sample;
     ${pcss_loop}
     float f_blockers = float(blockers);
     if(blockers > 0) avg_blocker_depth /= f_blockers;
+    // if(f_blockers > 0.01) avg_blocker_depth /= f_blockers;
     return vec2(avg_blocker_depth, f_blockers);
 }
 float chebyshev_inequality(vec2 moments, float z, float min_variance) {
@@ -319,12 +324,12 @@ float chebyshev_inequality(vec2 moments, float z, float min_variance) {
 float shadowmap_evsm(vec3 s_projcoord, vec2 sm_texel, float linear_z) {
     vec4 moments = texture(u_shadow_atlas_evsm_tex, s_projcoord.xy);
 
-    // return moment.x;
-    // float dx = dFdx(moment.x);
-    // float dy = dFdy(moment.x);
-    // moment.y += 0.25*(dx*dx + dy*dy);
+    // return moments.x;
+    float dx = dFdx(moments.x);
+    float dy = dFdy(moments.x);
+    moments.y += 0.25*(dx*dx + dy*dy);
     
-    // linear_z = linear_z*2.0 - 1.0;
+    linear_z = linear_z*2.0 - 1.0;
     vec2 exp_z = vec2(exp(u_light_exponents.x*linear_z),-exp(-u_light_exponents.y*linear_z));
     vec2 min_variances = 0.01*0.01 * u_light_exponents * exp_z;
 
@@ -339,25 +344,25 @@ float variable_shadowmap_evsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, m
     vec4 moments = summed_moments/float(pcf_sample_count);
 
     // return moment.x;
-    // float dx = dFdx(moment.x);
-    // float dy = dFdy(moment.x);
-    // moment.y += 0.25*(dx*dx + dy*dy);
+    float dx = dFdx(moments.x);
+    float dy = dFdy(moments.x);
+    moments.y += 0.25*(dx*dx + dy*dy);
     
-    // linear_z = linear_z*2.0 - 1.0;
+    linear_z = linear_z*2.0 - 1.0;
     vec2 exp_z = vec2(exp(u_light_exponents.x*linear_z),-exp(-u_light_exponents.y*linear_z));
     vec2 min_variances = 0.01*0.01 * u_light_exponents * exp_z;
 
     float pos_pmax = chebyshev_inequality(moments.xy, exp_z.x, min_variances.x);
     float neg_pmax = chebyshev_inequality(moments.zw, exp_z.y, min_variances.y);
-    // return clamp(min(pos_pmax, neg_pmax), 0.0, 1.0);
-    return clamp(min(pos_pmax, neg_pmax), 0.0, 10.0);
+    return clamp(min(pos_pmax, neg_pmax), 0.0, 1.0);
+    // return clamp(min(pos_pmax, neg_pmax), 0.0, 10.0);
 }
 float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_size, float shadow_bias, float rand) {
     // random rot
     float cos_rot = cos(rand); float sin_rot = sin(rand);
     mat2 rot = mat2(cos_rot, -sin_rot, sin_rot, cos_rot);
 
-    vec2 sm_texel = 1.0/(u_shadowmap_dims.xy*u_shadow_atlas_info.z);
+    vec2 sm_texel = 1.0/(u_shadowmap_dims.xy);
     float linear_z = linearize_depth(s_projcoord.z, u_light_znear, u_light_zfar);
 
     // perform shadowmap filtering
@@ -365,18 +370,14 @@ float shadowmap_pcss(vec3 s_projcoord, float light_z, float eye_z, float light_s
     float max_search = 30.0;
     float search_width = max(min_search,min(max_search, light_size * (light_z - u_light_znear) / min(eye_z, 1.0)));
     search_width *= u_shadowmap_dims.x/penumbra_basis_resolution; // normalize to basis resolution
-    // search_width = 5.0;
+    search_width = 7.0;
     vec2 blocker_res = pcss_blocker_distance(s_projcoord.xy, linear_z, sm_texel, search_width, rot, shadow_bias);
-    if(blocker_res.y < 0.9)                   return 1.0;
+    if(blocker_res.y < 0.1)                   return 1.0;
     if(blocker_res.x >= linear_z+shadow_bias) return 1.0;
 
     float penumbra_size = light_size * (linear_z - blocker_res.x) / blocker_res.x;
     // penumbra_size *= u_light_znear/linear_z;
     penumbra_size *= u_shadowmap_dims.x/penumbra_basis_resolution; // normalize to basis resolution
-
-    penumbra_size *= 3.0;
-
-    // return blocker_res.y*10.0;
 
     float shadow = variable_shadowmap_evsm(s_projcoord, sm_texel, linear_z, rot, penumbra_size);
 

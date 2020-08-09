@@ -1,9 +1,13 @@
+import * as M from 'gl-matrix';
+import { pretty_float, lerp } from '../ts/utils';
+import { TextureManager } from '../ts/texture_manager';
+
 // TUNING CONSTANTS
-export const SSAO_KERNEL_SIZE = 32;
-export const SSAO_SAMPLE_RADIUS = '0.25';
+export const SSAO_KERNEL_SIZE:		number = 32;
+export const SSAO_SAMPLE_RADIUS: 	number = 0.25;
 
 // LOCATIONS
-export const ssao_pass_l = {
+export const ssao_pass_l:any = {
 	attribs: {
 		vertex_pos: 'a_vert',
 	},
@@ -17,7 +21,7 @@ export const ssao_pass_l = {
 }
 
 // VERTEX SHADER
-export const ssao_pass_v = `#version 300 es
+export const ssao_pass_v:string = `#version 300 es
 
 layout(location = 0) in vec3 a_vert;
 
@@ -30,18 +34,19 @@ void main() {
 `;
 
 // FRAGMENT SHADER (generator)
-export function gen_ssao_pass_f(viewport_width, viewport_height) {return `#version 300 es
+export function gen_ssao_pass_f(viewport_width:number, viewport_height:number):string {
+	return `#version 300 es
 precision mediump float;
 
 // noise sampling constants
-const float viewport_width = ${viewport_width}.0;
-const float viewport_height = ${viewport_height}.0;
+const float viewport_width = ${pretty_float(viewport_width,1)};
+const float viewport_height = ${pretty_float(viewport_height,1)};
 const float noise_tex_dimension = 4.0;
 const vec2 noise_scale = vec2(viewport_width/noise_tex_dimension, viewport_height/noise_tex_dimension);
 
 // ssao kernel variables
 const int kernel_size = ${SSAO_KERNEL_SIZE};
-const float sample_radius = ${SSAO_SAMPLE_RADIUS};
+const float sample_radius = ${pretty_float(SSAO_SAMPLE_RADIUS,4)};
 const float sample_depth_bias = 0.01;
 
 // varyings
@@ -97,3 +102,56 @@ void main() {
 }
 
 `};
+
+export function gen_ssao_kernel(gl:any) {
+	// init vector for operations
+	const v = M.vec3.create();
+
+	// generate sample kernel
+	const sample_count = SSAO_KERNEL_SIZE;
+	const samples:Array<number> = [];
+	for(let i=0; i<sample_count; i++) {
+		// Generate vector in unit-hemisphere
+		M.vec3.set(v, 
+			Math.random()*2.0 - 1.0, 
+			Math.random()*2.0 - 1.0, 
+			Math.random());
+		M.vec3.normalize(v, v);
+		// Ramp interpolation from center
+		let scale = 1.0*i/sample_count;
+		scale = lerp(0.1, 1.0, scale*scale);
+		M.vec3.scale(v, v, scale);
+		// Push sample
+		samples.push(...v);
+	}
+	return new Float32Array(samples);
+}
+export function gen_ssao_noise(gl:any, tx:TextureManager):WebGLTexture {
+	// init vector for operations
+	const v = M.vec3.create();
+	
+	// generate noise texture values
+	const tex_dimension = 4;
+	const rotation_count = tex_dimension*tex_dimension;
+	const rotations = [];
+	for(let i=0; i<rotation_count; i++) {
+		M.vec3.set(v,
+			Math.random()*2.0 - 1.0, 
+			Math.random()*2.0 - 1.0, 
+			0);
+		rotations.push(...v);
+	}
+	const rotation_data = new Float32Array(rotations);
+
+	const tex = tx.gen_texture(gl, {
+		filter_function: gl.NEAREST,
+		texture_wrap: gl.REPEAT,
+		internal_format: gl.RGB16F,
+		dimensions:[tex_dimension,tex_dimension],
+		src_format: gl.RGB,
+		pixel: rotation_data,
+	});
+
+	// return sample kernel
+	return tex;
+}

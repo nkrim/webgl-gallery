@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS:any = {
 		quality_index: 0,
 	},
 	shadow: {
-		exponents: [30,30],
+		exponents: [30,10],
 	}
 }
 

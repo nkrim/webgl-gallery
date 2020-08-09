@@ -16,6 +16,9 @@ export class Spotlight {
 	bias_range:	vec2;
 	zplanes: 	vec2;
 
+	sm: WebGLTexture;
+	fb: WebGLFramebuffer;
+
 	// Constructed properties
 	// ----------------------
 	_o_angle_nocos: number;
@@ -43,6 +46,9 @@ export class Spotlight {
 		this.size = size;
 		this.bias_range = M.vec2.create(); M.vec2.copy(this.bias_range, bias_range);
 		this.zplanes = M.vec2.create(); M.vec2.copy(this.zplanes, zplanes);
+
+		this.sm = null;
+		this.fb = null;
 
 		// construct properties
 		this._o_angle_nocos = o_angle_nocos;

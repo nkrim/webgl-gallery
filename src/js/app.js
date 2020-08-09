@@ -2,22 +2,24 @@ import * as R from '../ts/render.ts';
 import * as ROOM from '../ts/room.ts';
 import { Camera } from '../ts/camera.ts';
 import * as INPUT from '../ts/input.ts';
-import { lerp, interlace_n, EPSILON } from '../ts/utils.ts';
+import { lerp, interlace_n, gaussian_kernel_1d, EPSILON } from '../ts/utils.ts';
 import * as S from '../ts/settings.ts';
 import * as M from './gl-matrix.js';
 import { load_room, room_config } from '../ts/room-config.ts';
 import { attribute_locs, init_mesh_vao } from '../ts/mesh.ts';
+import { TextureManager, SHADOWMAP_SIZE } from '../ts/texture_manager.ts';
 // Shaders
 // import { default_shader_v, default_shader_f } from './shaders/default_shader.js';
 import { deferred_pass_l, deferred_pass_v, deferred_pass_f } from '../shaders/deferred_pass.js';
 import { deferred_combine_l, deferred_combine_v, gen_deferred_combine_f } from '../shaders/deferred_combine.js';
-import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, SSAO_KERNEL_SIZE } from '../shaders/ssao_pass.js';
+import { ssao_pass_l, ssao_pass_v, gen_ssao_pass_f, gen_ssao_kernel } from '../shaders/ssao_pass.ts';
 import { ssao_blur_l, ssao_blur_v, gen_ssao_blur_f } from '../shaders/ssao_blur.js';
 import { spotlight_pass_l, spotlight_pass_v, gen_spotlight_pass_f, 
 		PCSS_BLOCKER_GRID_SIZE, PCSS_POISSON_SAMPLE_COUNT, PCF_POISSON_SAMPLE_COUNT } from '../shaders/spotlight_pass.js';
 import { fxaa_pass_l, fxaa_pass_v, gen_fxaa_pass_f, FXAA_QUALITY_SETTINGS } from '../shaders/fxaa_pass.ts';
 import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders/shadowmap_pass.js';
 import { evsm_pass_l, evsm_pass_v, evsm_pass_f } from '../shaders/evsm_pass.js';
+import { evsm_prefilter_l, evsm_prefilter_v, gen_evsm_prefilter_f } from '../shaders/evsm_prefilter.js';
 
 /* INITIALIZING FUNCTIONS
 ========================= */
@@ -172,156 +174,22 @@ function init_vaos(gl, room_list) {
 	};
 }
 
-function gen_screen_color_texture(gl, filter_function, dimensions, internal_format=gl.RGBA16F, source_format=gl.RGBA, source_type=gl.FLOAT) {
-	if(dimensions == undefined) {
-		dimensions = M.vec2.create();
-		M.vec2.set(dimensions, gl.canvas.clientWidth, gl.canvas.clientHeight);
-	}
-	const tx = gl.createTexture();
-	gl.bindTexture(gl.TEXTURE_2D, tx);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_function);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_function);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-	const level = 0;
-	const internalFormat = internal_format;
-	const width = dimensions[0];
-	const height = dimensions[1];
-	const border = 0;
-	const srcFormat = source_format;
-	const srcType = source_type;
-	const pixel = null;  // empty
-	gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
-            width, height, border, srcFormat, srcType, pixel);
-	return tx;
-}
-function gen_screen_depth_texture(gl, filter_function, dimensions, shadows=false) {
-	if(dimensions == undefined) {
-		dimensions = M.vec2.create();
-		M.vec2.set(dimensions, gl.canvas.clientWidth, gl.canvas.clientHeight);
-	}
-	const tx = gl.createTexture();
-	gl.bindTexture(gl.TEXTURE_2D, tx);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_function);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_function);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-	if(shadows) {
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
-
-	}
-	const level = 0;
-	const internalFormat = gl.DEPTH_COMPONENT16;
-	const width = dimensions[0];
-	const height = dimensions[1];
-	const border = 0;
-	const srcFormat = gl.DEPTH_COMPONENT;
-	const srcType = gl.UNSIGNED_SHORT;
-	const pixel = null;  // empty
-	gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
-            width, height, border, srcFormat, srcType, pixel);
-	return tx;
-}
-
-function load_image(gl, tx_obj, name, src) {
-	return new Promise(resolve => {
-		const image = new Image();
-		image.addEventListener('load', () => {
-			const tx = gl.createTexture();
-			gl.bindTexture(gl.TEXTURE_2D, tx);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-			tx_obj.img[name] = tx;
-			resolve(tx);
-		});
-		image.src = src;
-	});
-}
-
-/* TEXTURE INITIALIZATION
-	- index lookup
-	0: gbuffer depth
-	1: gbuffer position
-	2: gbuffer normal
-	3: gbuffer albedo
-	4: gbuffer roughness/metallic
-	5: gbuffer ambient light
-*/
-function init_textures(gl) {
-	// init tx_obj
-	const tx_obj = {};
-	const dims = M.vec2.create();
-
-	// deferred depth attachment
-	tx_obj.depth = gen_screen_depth_texture(gl, gl.NEAREST);
-	// gbuffer attachments
-	tx_obj.bufs = []
-	for(let i=0; i<6; i++) {
-		tx_obj.bufs.push(gen_screen_color_texture(gl, gl.LINEAR, undefined, gl.RGBA32F));
-	}
-	// ssao texture
-	M.vec2.set(dims, gl.canvas.clientWidth, gl.canvas.clientHeight);
-	tx_obj.ssao_pass = gen_screen_color_texture(gl, gl.NEAREST, dims);
-	tx_obj.ssao_blur = gen_screen_color_texture(gl, gl.LINEAR, dims);
-	// shadow atlas
-	const shadow_atlas = {
-		map_dims: [1024, 1024],
-		atlas_size: 2,
-	};
-	const atlas_dims = M.vec2.create(); M.vec2.scale(atlas_dims, shadow_atlas.map_dims, shadow_atlas.atlas_size);
-	shadow_atlas.depth_tex = gen_screen_depth_texture(gl, gl.NEAREST, atlas_dims, true);
-	shadow_atlas.linear_tex = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims, gl.RGBA32F);//gl.R32F, gl.RED);
-	shadow_atlas.evsm_tex = gen_screen_color_texture(gl, gl.LINEAR, atlas_dims, gl.RGBA32F);
-	tx_obj.shadow_atlas = shadow_atlas;
-	// light accumulation buffer
-	tx_obj.light_val = gen_screen_color_texture(gl, gl.LINEAR);
-	// screen write texture
-	tx_obj.screen_tex = gen_screen_color_texture(gl, gl.LINEAR);
-
-	// default white texture (for when effects are turned off)
-	{ 	const tx = gl.createTexture();
-		gl.bindTexture(gl.TEXTURE_2D, tx);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, 1, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array([1,1,1,1])); 
-		tx_obj.white = tx;
-	}
-
-	// obj of image textures
-	tx_obj.img = {};
-
-
-	return tx_obj;
-}
-
 /* Framebuffer Initializations
 ------------------------------ */
-function init_deferred_framebuffer(gl, tx) {
+function init_deferred_framebuffer(gl, depth_tex, gbuffer) {
 	const fb = gl.createFramebuffer();
+
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, tx.depth, 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tx.bufs[0], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, tx.bufs[1], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, tx.bufs[2], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, tx.bufs[3], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT4, gl.TEXTURE_2D, tx.bufs[4], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT5, gl.TEXTURE_2D, tx.bufs[5], 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depth_tex, 0);
 
+	let buffer_attachments = [];
+	for(let i=0; i<gbuffer.length; i++) {
+		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+i, gl.TEXTURE_2D, gbuffer[i], 0);
+		buffer_attachments.push(gl.COLOR_ATTACHMENT0+i);
+	}
 	// DRAW BUFFERS
-	gl.drawBuffers([
-		gl.COLOR_ATTACHMENT0, 
-		gl.COLOR_ATTACHMENT1, 
-		gl.COLOR_ATTACHMENT2,
-		gl.COLOR_ATTACHMENT3,
-		gl.COLOR_ATTACHMENT4,
-		gl.COLOR_ATTACHMENT5,
-	]);
+	gl.drawBuffers(buffer_attachments);
 
 	// unbind
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -329,7 +197,7 @@ function init_deferred_framebuffer(gl, tx) {
 	return fb;
 }
 
-function init_standard_write_framebuffer(gl, attachment, texture) {
+function init_standard_write_framebuffer(gl, texture, attachment=gl.COLOR_ATTACHMENT0) {
 	const fb = gl.createFramebuffer();
 	// Bind GBuffer textures
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
@@ -352,70 +220,6 @@ function init_shadowmapping_framebuffer(gl, shadow_map, color_attachment) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
 	return fb;
-}
-
-/* SSAO Kernel and noise generation
------------------------------------ */
-function gen_ssao_kernel_and_noise(gl, tx_obj) {
-	// init vector for operations
-	const v = M.vec3.create();
-
-	// generate sample kernel
-	const sample_count = SSAO_KERNEL_SIZE;
-	const samples = [];
-	for(let i=0; i<sample_count; i++) {
-		// Generate vector in unit-hemisphere
-		M.vec3.set(v, 
-			Math.random()*2.0 - 1.0, 
-			Math.random()*2.0 - 1.0, 
-			Math.random());
-		M.vec3.normalize(v, v);
-		// Ramp interpolation from center
-		let scale = 1.0*i/sample_count;
-		scale = lerp(0.1, 1.0, scale*scale);
-		M.vec3.scale(v, v, scale);
-		// Push sample
-		samples.push(...v);
-	}
-	const sample_data = new Float32Array(samples);
-
-	// generate noise texture values
-	const tex_dimension = 4;
-	const rotation_count = tex_dimension*tex_dimension;
-	const rotations = [];
-	for(let i=0; i<rotation_count; i++) {
-		M.vec3.set(v,
-			Math.random()*2.0 - 1.0, 
-			Math.random()*2.0 - 1.0, 
-			0);
-		rotations.push(...v);
-	}
-	const rotation_data = new Float32Array(rotations);
-
-	// generate noise texture
-	{
-		const tx = gl.createTexture();
-		gl.bindTexture(gl.TEXTURE_2D, tx);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-		const level = 0;
-		const internalFormat = gl.RGB16F;
-		const width = tex_dimension;
-		const height = tex_dimension;
-		const border = 0;
-		const srcFormat = gl.RGB;
-		const srcType = gl.FLOAT;
-		const pixel = rotation_data;  // rotations array
-		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
-                width, height, border, srcFormat, srcType, pixel);
-		// set as rot_noise
-		tx_obj.rot_noise = tx;
-	}
-
-	// return sample kernel
-	return sample_data;
 }
 
 /* PCSS SAMPLE GENERATORS
@@ -540,12 +344,21 @@ function main_init(gl, room_list) {
 	let settings_obj = Object.create(S.DEFAULT_SETTINGS);
 
 	// INIT TEXTURES
-  	const tx = init_textures(gl);
+	const image_textures = [
+		['blue_noise', './img/LDR_RGB1_3.png'],
+		['blue_noise_1d', './img/LDR_LLL1_3.png'],
+	];
+  	const tx = new TextureManager(gl, [gl.canvas.clientWidth,gl.canvas.clientHeight], image_textures);
 
 	// SHADER INIT
+	const gaussian_kernel_5 = gaussian_kernel_1d(5);
 	let shaders = {
 		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
 		evsm_pass: 			init_shader_program(gl, evsm_pass_v, evsm_pass_f, evsm_pass_l),
+		/*evsm_prefilter_x: 	init_shader_program(gl, evsm_prefilter_v, 
+									gen_evsm_prefilter_f(gaussian_kernel_5, true), evsm_pass_l),
+		evsm_prefilter_x: 	init_shader_program(gl, evsm_prefilter_v, 
+									gen_evsm_prefilter_f(gaussian_kernel_5, false), evsm_pass_l),*/
 		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
 		deferred_combine: 	init_shader_program(gl, deferred_combine_v, 
 								gen_deferred_combine_f(gl.canvas.clientWidth, gl.canvas.clientHeight), deferred_combine_l),
@@ -580,20 +393,15 @@ function main_init(gl, room_list) {
 
   	// FRAMEBUFFER INIT
   	const fb_obj = {
-  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.shadow_atlas.depth_tex, tx.shadow_atlas.linear_tex),
-  		evsm_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.evsm_tex),
-		deferred: 			init_deferred_framebuffer(gl, tx),
-		ssao_pass: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_pass),
-		ssao_blur: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.ssao_blur),
-		light_val: 			init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.light_val),
-		deferred_combine: 	init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.screen_tex),
-		summedarea_a: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.savsm_a),
-		summedarea_b: 		init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.savsm_b),
-		// summedarea_debug: 	init_standard_write_framebuffer(gl, gl.COLOR_ATTACHMENT0, tx.shadow_atlas.savsm_debug),
+  		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.sm_depth_generic, tx.sm_linear_generic),
+  		evsm_pass: 			init_standard_write_framebuffer(gl, tx.sm_evsm_generic),
+		deferred: 			init_deferred_framebuffer(gl, tx.screen_depth, tx.gbuffer),
+		ssao_pass: 			init_standard_write_framebuffer(gl, tx.ssao_preblur),
+		ssao_blur: 			init_standard_write_framebuffer(gl, tx.ssao),
+		light_val: 			init_standard_write_framebuffer(gl, tx.light_accum),
+		screen_out_a: 		init_standard_write_framebuffer(gl, tx.screen_out_a),
+		screen_out_b: 		init_standard_write_framebuffer(gl, tx.screen_out_b),
 	};
-
-  	// SSAO DATA INIT
-  	const ssao_sample_kernel = gen_ssao_kernel_and_noise(gl, tx);
 
   	// PCSS BLOCKER SEARCH GRID
   	const pcss_blocker_samples = gen_poisson_disc_samples(PCSS_POISSON_SAMPLE_COUNT, PCSS_POISSON_SAMPLE_COUNT/2);//gen_pcss_blocker_samples(PCSS_BLOCKER_GRID_SIZE);
@@ -638,7 +446,7 @@ function main_init(gl, room_list) {
 		cam: cam,
 		tx: tx,
 		fb: fb_obj,
-		ssao_kernel: ssao_sample_kernel,
+		ssao_kernel: gen_ssao_kernel(gl),
 		blocker_samples: pcss_blocker_samples,
 		poisson_samples: pcss_poisson_samples,
 		settings: settings_obj,
@@ -786,12 +594,8 @@ function main() {
 		}
 	}
 
-	// ASYNC ACTIVITIES
-	const image_textures = [
-		load_image(gl, program_data.tx, 'blue_noise', './img/LDR_RGB1_3.png'),
-		load_image(gl, program_data.tx, 'blue_noise_1d', './img/LDR_LLL1_3.png'),
-	];
-	const p = Promise.all(image_textures).finally(() => {
+	// ASYNC ACTIVITIE
+	pd.tx.all_images_loaded.finally(() => {
 		// RENDERING (FRAME TICK)
   		gallery_animation_id = requestAnimationFrame(frame_tick(gl, program_data));
 	});

@@ -36,7 +36,7 @@ export function gen_evsm_prefilter_f(kernel, x_pass) {
 	let kernel_loop = '';
 	for(let i=1; i<kernel.length; i++) {
 		kernel_loop += `
-		offset.${dim} = ${pretty_float(offsets[i],pf_length)};
+		offset.${dim} = sm_res*${pretty_float(offsets[i],pf_length)};
 		o_fragcolor += texture(u_sm_tex, v_texcoord+offset)*${pretty_float(kernel[i],pf_length)};
 		o_fragcolor += texture(u_sm_tex, v_texcoord-offset)*${pretty_float(kernel[i],pf_length)};`
 	}
@@ -53,7 +53,7 @@ const float sm_res = ${pretty_float(1/SHADOWMAP_SIZE,pf_length)};
 out vec4 o_fragcolor;
 
 void main() {
-	vec2 offest = vec2(0.0);
+	vec2 offset = vec2(0.0);
 	o_fragcolor = texture(u_sm_tex, v_texcoord)*${pretty_float(kernel[0],pf_length)};
 	${kernel_loop}
 }

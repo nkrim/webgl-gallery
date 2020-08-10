@@ -351,14 +351,14 @@ function main_init(gl, room_list) {
   	const tx = new TextureManager(gl, [gl.canvas.clientWidth,gl.canvas.clientHeight], image_textures);
 
 	// SHADER INIT
-	const gaussian_kernel_5 = gaussian_kernel_1d(5);
+	const gaussian_kernel_default = gaussian_kernel_1d(15);
 	let shaders = {
 		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
 		evsm_pass: 			init_shader_program(gl, evsm_pass_v, evsm_pass_f, evsm_pass_l),
-		/*evsm_prefilter_x: 	init_shader_program(gl, evsm_prefilter_v, 
-									gen_evsm_prefilter_f(gaussian_kernel_5, true), evsm_pass_l),
 		evsm_prefilter_x: 	init_shader_program(gl, evsm_prefilter_v, 
-									gen_evsm_prefilter_f(gaussian_kernel_5, false), evsm_pass_l),*/
+									gen_evsm_prefilter_f(gaussian_kernel_default, true), evsm_pass_l),
+		evsm_prefilter_y: 	init_shader_program(gl, evsm_prefilter_v, 
+									gen_evsm_prefilter_f(gaussian_kernel_default, false), evsm_pass_l),
 		deferred_pass: 		init_shader_program(gl, deferred_pass_v, deferred_pass_f, deferred_pass_l),
 		deferred_combine: 	init_shader_program(gl, deferred_combine_v, 
 								gen_deferred_combine_f(gl.canvas.clientWidth, gl.canvas.clientHeight), deferred_combine_l),
@@ -395,6 +395,7 @@ function main_init(gl, room_list) {
   	const fb_obj = {
   		shadowmap_pass: 	init_shadowmapping_framebuffer(gl, tx.sm_depth_generic, tx.sm_linear_generic),
   		evsm_pass: 			init_standard_write_framebuffer(gl, tx.sm_evsm_generic),
+  		evsm_prefilter: 	init_standard_write_framebuffer(gl, tx.sm_prefilter_temp),
 		deferred: 			init_deferred_framebuffer(gl, tx.screen_depth, tx.gbuffer),
 		ssao_pass: 			init_standard_write_framebuffer(gl, tx.ssao_preblur),
 		ssao_blur: 			init_standard_write_framebuffer(gl, tx.ssao),
@@ -574,6 +575,8 @@ function main() {
   	window.gl = gl;
   	window.M = M;
   	window.pd = program_data;
+
+  	window.g = gaussian_kernel_1d;
 
   	// SETTINGS BUTTONS INIT
   	S.init_settings_handlers(program_data);

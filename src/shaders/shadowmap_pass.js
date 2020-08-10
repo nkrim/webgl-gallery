@@ -31,9 +31,6 @@ precision mediump float;
 uniform float u_znear;
 uniform float u_zfar;
 
-const float esm_pos_constant = 30.0;
-const float esm_neg_constant = 10.0;
-
 // out float o_fragcolor;
 out vec4 o_fragcolor;
 

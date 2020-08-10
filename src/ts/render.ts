@@ -135,6 +135,66 @@ function shadowmap_pass(gl:any, pd:any, room:Room, light:Spotlight):void {
 	// unbind vao
 	gl.bindVertexArray(null);
 
+	// gaussian pass x
+	// ---------------------------
+	// bind FRAMEBUFFER
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.evsm_prefilter);
+
+	// set shader
+	shader = pd.shaders.evsm_prefilter_x;
+	gl.useProgram(shader.prog);
+
+	// clear constants
+	gl.clearColor(0.0, 0.0, 0.0, 1.0); 
+	gl.clearDepth(1.0);                
+	gl.disable(gl.DEPTH_TEST);         
+	gl.enable(gl.CULL_FACE);
+	gl.cullFace(gl.BACK);
+	// clear
+	gl.clear(gl.COLOR_BUFFER_BIT);
+
+	// set textures
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.sm_evsm_generic);
+	gl.uniform1i(shader.uniforms.sm_tex, 0);
+
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
+	// draw
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
+
+	// gaussian pass y
+	// ---------------------------
+	// bind FRAMEBUFFER
+	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.evsm_pass);
+
+	// set shader
+	shader = pd.shaders.evsm_prefilter_y;
+	gl.useProgram(shader.prog);
+
+	// clear constants
+	gl.clearColor(0.0, 0.0, 0.0, 1.0); 
+	gl.clearDepth(1.0);                
+	gl.disable(gl.DEPTH_TEST);         
+	gl.enable(gl.CULL_FACE);
+	gl.cullFace(gl.BACK);
+	// clear
+	gl.clear(gl.COLOR_BUFFER_BIT);
+
+	// set textures
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.sm_prefilter_temp);
+	gl.uniform1i(shader.uniforms.sm_tex, 0);
+
+	// bind vao
+	gl.bindVertexArray(pd.vaos.quad);
+	// draw
+	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+	// unbind vao
+	gl.bindVertexArray(null);
+
 	// reset viewport
 	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
 }
@@ -254,7 +314,7 @@ function ssao_pass(gl:any, pd:any, proj_m:mat4):void {
 	gl.bindTexture(gl.TEXTURE_2D, pd.tx.gbuffer[2]);
 	gl.uniform1i(shader.uniforms.norm_tex, 1);
 	gl.activeTexture(gl.TEXTURE2);	// noise texture
-	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_noise);
+	gl.bindTexture(gl.TEXTURE_2D, pd.tx.ssao_rot);
 	gl.uniform1i(shader.uniforms.noise_tex, 2);
 
 	// uniform set

@@ -4,8 +4,11 @@ export const DEFAULT_SETTINGS:any = {
 	player: {
 		model: false,
 	},
+	light: {
+		spin: false,
+	},
 	ssao: {
-		enabled: false,
+		enabled: true,
 	},
 	fxaa: {
 		enabled: true,
@@ -27,6 +30,17 @@ export function init_settings_handlers(pd:any):void {
 	player_model.onclick = function() {
 		pd.settings.player.model = !pd.settings.player.model;
 		player_model_button_state();
+	}
+	// spin_light
+	const spin_light:any = document.querySelector('#spinLight');
+	function spin_light_button_state() {
+			spin_light.children[0].textContent = pd.settings.light.spin?'ON':'OFF';
+			spin_light.classList.toggle('button-active', pd.settings.light.spin); 
+	};
+	spin_light_button_state();
+	spin_light.onclick = function() {
+		pd.settings.light.spin = !pd.settings.light.spin;
+		spin_light_button_state();
 	}
 	// ssao_enabled
 	const ssao_enabled:any = document.querySelector('#ssaoEnabled');

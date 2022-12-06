@@ -462,12 +462,33 @@ let prev_t = -1;
 let frame_count = 0;
 let time_of_last_tracked_frame = -1;
 const fps_write_interval = 2000;
+
+// @temp: spin light stuff
+let spin_dir = true;
+const light_spin_speed = 0.005;
+const light_spin_min = 0;
+const light_spin_max = 1.7853981633974483;
+
 function frame_tick(gl, program_data) {
 	function T(t) {
 		// Give grace-frame for accurate dt
 		if(prev_t < 0)
 			prev_t = t;
 		let dt = t - prev_t;
+
+		// @temp: spin light
+		if(pd.settings.light.spin) {
+			let light_cam = pd.room_list[0].spotlights[0].cam;
+			light_cam.yaw += (spin_dir ? 1 : -1)*light_spin_speed;
+			if(spin_dir && light_cam.yaw > light_spin_max) {
+				spin_dir = false;
+				light_cam.yaw = 2*light_spin_max - light_cam.yaw;
+			}
+			else if(!spin_dir && light_cam.yaw < 0) {
+				spin_dir = true;
+				light_cam.yaw = -1*light_cam.yaw;
+			}
+		}
 
 		INPUT.handle_input(program_data.cam, dt);
 		R.render(gl, program_data, t);

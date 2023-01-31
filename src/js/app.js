@@ -345,7 +345,7 @@ function main_init(gl, room_list) {
 
 	// INIT TEXTURES
 	const image_textures = [
-		['blue_noise', './img/LDR_RGB1_3.png'],
+		// ['blue_noise', './img/LDR_RGB1_3.png'],
 		['blue_noise_1d', './img/LDR_LLL1_3.png'],
 	];
   	const tx = new TextureManager(gl, [gl.canvas.clientWidth,gl.canvas.clientHeight], image_textures);

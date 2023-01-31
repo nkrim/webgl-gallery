@@ -242,7 +242,7 @@ void main() {
     // float shadow = shadowmap_pcss(P_from_light.xyz, P_from_light_view.z, P.z, u_light_size, shadow_bias, rand);
 
     vec2 sm_texel = 1.0/(u_shadowmap_dims.xy);
-    float linear_z = linearize_depth(P_from_light.z, u_light_znear, u_light_zfar);
+    float linear_z = P_from_light.z;//linearize_depth(P_from_light.z, u_light_znear, u_light_zfar);
     float shadow = shadowmap_evsm(P_from_light.xyz, sm_texel, linear_z);
 
     /*if(shadow > 1.0) {

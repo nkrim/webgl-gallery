@@ -21,6 +21,10 @@ import { shadowmap_pass_l, shadowmap_pass_v, shadowmap_pass_f } from '../shaders
 import { evsm_pass_l, evsm_pass_v, evsm_pass_f } from '../shaders/evsm_pass.js';
 import { evsm_prefilter_l, evsm_prefilter_v, gen_evsm_prefilter_f } from '../shaders/evsm_prefilter.js';
 
+/* GLOBAL CONSTANTS
+========================= */
+const GAUSSIAN_KERNEL_SIZE = 15; // 45; // 15;
+
 /* INITIALIZING FUNCTIONS
 ========================= */
 function load_shader(gl, type, source) {
@@ -351,7 +355,7 @@ function main_init(gl, room_list) {
   	const tx = new TextureManager(gl, [gl.canvas.clientWidth,gl.canvas.clientHeight], image_textures);
 
 	// SHADER INIT
-	const gaussian_kernel_default = gaussian_kernel_1d(15);
+	const gaussian_kernel_default = gaussian_kernel_1d(GAUSSIAN_KERNEL_SIZE);
 	let shaders = {
 		shadowmap_pass: 	init_shader_program(gl, shadowmap_pass_v, shadowmap_pass_f, shadowmap_pass_l),
 		evsm_pass: 			init_shader_program(gl, evsm_pass_v, evsm_pass_f, evsm_pass_l),

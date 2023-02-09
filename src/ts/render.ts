@@ -135,7 +135,7 @@ function shadowmap_pass(gl:any, pd:any, room:Room, light:Spotlight):void {
 	// unbind vao
 	gl.bindVertexArray(null);
 
-	// gaussian pass x
+	/*// gaussian pass x
 	// ---------------------------
 	// bind FRAMEBUFFER
 	gl.bindFramebuffer(gl.FRAMEBUFFER, pd.fb.evsm_prefilter);
@@ -193,7 +193,7 @@ function shadowmap_pass(gl:any, pd:any, room:Room, light:Spotlight):void {
 	// draw
 	gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 	// unbind vao
-	gl.bindVertexArray(null);
+	gl.bindVertexArray(null);*/
 
 	// reset viewport
 	gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);

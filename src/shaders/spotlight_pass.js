@@ -333,10 +333,14 @@ float shadowmap_evsm(vec3 s_projcoord, vec2 sm_texel, float linear_z) {
     vec2 exp_z = vec2(exp(u_light_exponents.x*linear_z),-exp(-u_light_exponents.y*linear_z));
     vec2 min_variances = 0.01*0.01 * u_light_exponents * exp_z;
 
-    float pos_pmax = chebyshev_inequality(moments.xy, exp_z.x, min_variances.x);
-    float neg_pmax = chebyshev_inequality(moments.zw, exp_z.y, min_variances.y);
-    // return clamp(min(pos_pmax, neg_pmax), 0.0, 1.0);
-    return clamp(min(pos_pmax, neg_pmax), 0.0, 10.0);
+    // float pos_pmax = chebyshev_inequality(moments.xy, exp_z.x, min_variances.x);
+    // float neg_pmax = chebyshev_inequality(moments.zw, exp_z.y, min_variances.y);
+    // return clamp(min(pos_pmax, neg_pmax), 0.0, 1.0); // Don't use
+    // return clamp(min(pos_pmax, neg_pmax), 0.0, 10.0);
+
+    // VSM
+    float pos_pmax = chebyshev_inequality(moments.xy, linear_z, min_variances.x);
+    return pos_pmax;
 }
 float variable_shadowmap_evsm(vec3 s_projcoord, vec2 sm_texel, float linear_z, mat2 rot, float sample_width) {
     vec4 summed_moments = vec4(0.0);

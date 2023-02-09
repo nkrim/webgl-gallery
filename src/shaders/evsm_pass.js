@@ -40,9 +40,9 @@ void main() {
 	lin_z = lin_z*2.0 - 1.0;
 	float p_exp_z = exp(u_exponents.x * lin_z);
 	float n_exp_z = -exp(-u_exponents.y * lin_z);
-	o_fragcolor = vec4(p_exp_z, p_exp_z*p_exp_z, n_exp_z, n_exp_z*n_exp_z);
+	// o_fragcolor = vec4(p_exp_z, p_exp_z*p_exp_z, n_exp_z, n_exp_z*n_exp_z);
 	// o_fragcolor = vec4(p_exp_z, p_exp_z*p_exp_z, 0.0,1.0);
-	// o_fragcolor = vec4(lin_z, 0.0, 0.0, 1.0); 
+	o_fragcolor = vec4(lin_z, lin_z*lin_z, 0.0, 1.0);
 	// o_fragcolor = vec4(lin_z,0.0,0.0,1.0); 
 	// o_fragcolor = vec4(z, 0.0, 0.0, 1.0);
 }
